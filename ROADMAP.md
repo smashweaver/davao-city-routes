@@ -122,6 +122,13 @@ after installing GeoClue; the underlying browser/OS cause is still unconfirmed.
 - [ ] Show mode-appropriate fares/costs and travel time.
 - [ ] Keep PUJ as the primary, verified mode.
 
+## Search and map experience
+
+- [x] Accept decimal latitude/longitude pairs directly in Find Route as a
+      destination or an explicit origin, preserving precision and validating ranges.
+- [x] Show a destination flag pin and permanent label, including while finding
+      the starting point or when the current route network cannot connect a trip.
+
 ## Boarding points and route finding
 - [x] Consider nearby points along mapped jeep route lines when choosing the
       initial boarding point, rather than requiring a walk to a named landmark.

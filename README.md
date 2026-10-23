@@ -17,8 +17,13 @@ animated jeepney marker.
 ## Features
 
 - **Route map** — all routes drawn as colored polylines on an OpenStreetMap base map.
+- **Destination graphic** — a prominent flag pin with a permanent destination
+  label. It appears when a destination is selected, including while locating
+  the starting point or when no supported trip is found. Selecting a route to
+  explore clears it; trip framing leaves space for the pin and label.
 - **Natural-language trip search** — e.g. `Abreeza`, `from Matina to Abreeza`,
-  `Bankerohan to Calinan`, `Uyanguren to SPMC`.
+  `Bankerohan to Calinan`, `Uyanguren to SPMC`. Decimal `latitude, longitude`
+  pairs also work as destinations or explicit starting points.
 - **Place lookup for unknown names** — known landmarks resolve locally; other
   places are looked up with Google Places (when a key is saved) or OpenStreetMap
   Nominatim, then shown as pickable candidates with route-coverage hints.
@@ -38,7 +43,7 @@ animated jeepney marker.
 
 | Layer | Choice |
 | --- | --- |
-| Markup/styling | Semantic HTML + self-contained native CSS in `index.html` |
+| Markup/styling | Semantic HTML + self-contained native CSS and an inline SVG destination pin in `index.html` |
 | Mapping | [Leaflet](https://leafletjs.com/) 1.9.4 (unpkg CDN) |
 | Tile layer | OpenStreetMap standard tiles |
 | App logic | Vanilla JavaScript (no framework, no bundler) |
@@ -83,6 +88,12 @@ You can also open `index.html` directly, but a local HTTP server is recommended:
 browsers often block or degrade geolocation on `file://`.
 
 ## Place lookup
+
+Find Route accepts decimal coordinates in **latitude, longitude** order, such as
+`7.09145, 125.61033`. A pair on its own is a destination; use
+`from 7.09145, 125.61033 to SM Lanang` to set a starting point. Both ends can be
+coordinates. Coordinate input is validated and used directly without a place
+lookup; route planning still depends on coverage by the mapped jeep routes.
 
 Typed places are resolved in this order:
 
@@ -238,7 +249,13 @@ temporary and removed after the route data was written into `index.html`.
   direct walking leg with recalculated distance and geometry endpoints, and
   ensure jeepney trips retain their rides and access/egress walking. They also
   cover an approximate Flores-area origin, route-edge splitting in both
-  directions, estimated access labels, and query isolation.
+  directions, estimated access labels, query isolation, coordinate input with
+  full numeric precision, and invalid-coordinate messages. Coordinate searches
+  bypass external place lookup.
+- Destination graphics were visually inspected in Firefox at 1440×900,
+  390×844, and 390×650. The pin and permanent label fit within the map; the
+  label moves beside the pin on short maps. Checks also confirmed that route
+  selection clears the destination and unsupported trips still display it.
 
 Run the planner regression checks with the app served by `./run.sh`,
 Playwright's Firefox installed, and installed Google Chrome (or use
@@ -248,8 +265,9 @@ Playwright's Firefox installed, and installed Google Chrome (or use
 uv run --with playwright python tools/planner/regression_checks.py
 ```
 
-Last verified: **October 24, 2026** (location, direct-walk, and route-access checks;
-earlier route checks on October 23).
+Last verified: **October 24, 2026** (planner and mocked location checks in Firefox
+and Chrome; destination graphics and responsive framing in Firefox; earlier
+route checks on October 23).
 
 ## Known limitations
 

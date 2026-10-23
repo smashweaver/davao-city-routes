@@ -145,6 +145,51 @@ async def check(browser_type, url):
         assert result['far'] is None, result
         assert not errors, errors
         print('PASS: direct walking competes with transit and distant origins stay unsupported', flush=True)
+
+        # Coordinate input bypasses place search and preserves numeric precision.
+        geocode_requests = []
+
+        async def unexpected_geocode(route):
+            geocode_requests.append(route.request.url)
+            await route.fulfill(status=503, body='Coordinate lookup should stay local')
+
+        await context.route('**/nominatim.openstreetmap.org/**', unexpected_geocode)
+        await context.route('**/places.googleapis.com/**', unexpected_geocode)
+        coordinate_text = '7.091450123456, 125.610330123456'
+        result = await page.evaluate('''text => {
+          const bare=parseTripQuery(text);
+          const origin=parseTripQuery(`from ${text} to SM Lanang`);
+          const signed=parseTripQuery('from -7.25, +125.50 to +7.75, -125.25');
+          const chat=parseTripQuery("I'm at Matina, going to Abreeza");
+          return {bare:bare.destination,origin:origin.origin,to:origin.destination.key,
+            signedOrigin:signed.origin,signedDestination:signed.destination,
+            chat:[chat.origin.key,chat.destination.key],
+            invalid:parseTripQuery('91, 125').error,
+            invalidOrigin:parseTripQuery('from 7, 181 to Abreeza').error};
+        }''', coordinate_text)
+        assert result['bare']['lat'] == 7.091450123456 and result['bare']['lng'] == 125.610330123456, result
+        assert result['origin'] == result['bare'] and result['to'] == 'sm-lanang', result
+        assert result['signedOrigin']['lat'] == -7.25 and result['signedOrigin']['lng'] == 125.5, result
+        assert result['signedDestination']['lat'] == 7.75 and result['signedDestination']['lng'] == -125.25, result
+        assert result['chat'] == ['matina-crossing', 'abreeza'], result
+        assert result['invalid'] and result['invalidOrigin'], result
+
+        await page.evaluate("userLocation = {lat:7.07252,lng:125.61220,label:'Test origin'}")
+        await page.locator('#chat-input').fill(coordinate_text)
+        await page.locator('#search-btn').click()
+        await page.wait_for_function('currentTrip.destination.lat === 7.091450123456')
+        await page.wait_for_selector('.trip-title:has-text("7.091450")')
+        # Both coordinate places have a null key; that must not mean same place.
+        await page.locator('#chat-input').fill(f'from {coordinate_text} to 7.09897, 125.63077')
+        await page.locator('#search-btn').click()
+        await page.wait_for_function('currentTrip.origin.lat === 7.091450123456 && currentTrip.destination.lat === 7.09897')
+        await page.wait_for_selector('.trip-title:has-text("7.098970")')
+        await page.locator('#chat-input').fill('from 91, 125 to Abreeza')
+        await page.locator('#search-btn').click()
+        await page.wait_for_selector('.assistant-card:has-text("latitude must be between")')
+        assert not geocode_requests, geocode_requests
+        assert not errors, errors
+        print('PASS: pasted coordinates work as destinations and origins without place lookup; invalid ranges are explained', flush=True)
     finally:
         await browser.close()
 

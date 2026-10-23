@@ -141,6 +141,14 @@
     .key-line { display: inline-block; width: 17px; border-top: 3px solid #d99922; border-radius: 2px; }
     .key-walk { border-top: 2px dashed #94a3b8; }
     .jeep-icon { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 2px solid white; border-radius: 50%; box-shadow: 0 3px 10px #153b3540; font-size: 14px; }
+    .destination-marker { background: none; border: 0; }
+    .destination-marker svg { display: block; width: 44px; height: 52px; filter: drop-shadow(0 3px 5px #153b3545); }
+    .destination-label.leaflet-tooltip { width: max-content; max-width: 190px; padding: 9px 12px; border: 1px solid #d4dbc7; border-radius: 9px; background: #fffdf5; color: var(--ink); box-shadow: 0 3px 14px #153b3520; white-space: normal; text-align: center; }
+    .destination-label.leaflet-tooltip-top::before { border-top-color: #fffdf5; }
+    .destination-label.leaflet-tooltip-right::before { border-right-color: #fffdf5; }
+    .destination-label span { display: block; font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #6c785e; }
+    .destination-label strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: 3px; font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; }
+    .map-panel.has-destination .map-title { display: none; }
     .leaflet-control-zoom { border: 1px solid #d2dacb !important; border-radius: 9px !important; overflow: hidden; box-shadow: 0 3px 14px #153b3520 !important; }
     .leaflet-control-zoom a { color: var(--ink) !important; background: #fffdf6 !important; }
     .leaflet-container { font-family: inherit; }
@@ -213,7 +221,7 @@
       <section class="search-panel" aria-label="Plan a commute">
         <label class="search-title" for="chat-input">Where are we headed?</label>
         <div class="search-row">
-          <input type="text" id="chat-input" class="search-input" placeholder="A place, or from Matina to Abreeza" autocomplete="off" />
+          <input type="text" id="chat-input" class="search-input" placeholder="A place, lat, lng, or from Matina to Abreeza" autocomplete="off" />
           <button id="search-btn" class="search-button" type="button">Find route ↗</button>
         </div>
         <div class="preset-list">
@@ -223,7 +231,7 @@
           <button class="preset-tag" data-query="Roxas Night Market" type="button">Roxas Market</button>
           <button class="preset-tag" data-query="Toril" type="button">Toril</button>
         </div>
-        <p class="search-hint">Use My Location, or add your starting point with “from”.</p>
+        <p class="search-hint">Enter a place or latitude, longitude. Add your starting point with “from”.</p>
         <details class="search-settings">
           <summary>Search settings</summary>
           <div class="settings-row">
@@ -3253,6 +3261,7 @@
     let polylineLayers = {};
     let jeepMarker = null;
     let originMarker = null;
+    let destinationMarker = null;
     let tripLayer = null;
 
     let activeRoute = null;
@@ -3464,9 +3473,59 @@
       }
     }
 
+    function clearDestinationMarker() {
+      if (destinationMarker) map.removeLayer(destinationMarker);
+      destinationMarker = null;
+      document.querySelector('.map-panel').classList.remove('has-destination');
+    }
+
+    function setDestinationMarker(point, focus = false) {
+      clearDestinationMarker();
+      const label = point.label || 'Destination';
+      const compact = map.getSize().y < 240;
+      const icon = L.divIcon({
+        className: 'destination-marker',
+        html: `<svg viewBox="0 0 44 52" aria-hidden="true" focusable="false">
+          <path d="M22 50C18 44 3 32 3 22a19 19 0 1 1 38 0c0 10-15 22-19 28Z" fill="#183b35" stroke="#fffdf5" stroke-width="2.5"/>
+          <path d="M15 32V12" stroke="#fffdf5" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M16 13c5-4 9 4 15 0v12c-6 4-10-4-15 0Z" fill="#f6c84a"/>
+        </svg>`,
+        iconSize: [44, 52],
+        iconAnchor: [22, 50]
+      });
+      destinationMarker = L.marker([point.lat, point.lng], {
+        icon, title: `Destination: ${label}`, zIndexOffset: 1000, bubblingMouseEvents: true
+      }).addTo(map).bindTooltip(
+        `<span>Destination</span><strong>${escapeHtml(label)}</strong>`,
+        { permanent: true, direction: compact ? 'right' : 'top', offset: compact ? [24, -27] : [0, -48],
+          className: 'destination-label', opacity: 1 }
+      );
+      document.querySelector('.map-panel').classList.add('has-destination');
+      if (focus) {
+        map.setView([point.lat, point.lng], 14, { animate: false });
+        const size = destinationMarker.getTooltip().getElement().getBoundingClientRect();
+        const offsetY = Math.max(0, (compact ? size.height / 2 + 35 : size.height + 60) - map.getSize().y / 2);
+        const offsetX = compact ? Math.max(0, size.width + 45 - map.getSize().x / 2) : 0;
+        if (offsetX || offsetY) map.panBy([offsetX, -offsetY], { animate: false });
+      }
+    }
+
     // --- PLACE / CHAT PARSING ---
+    function parseCoordinate(text) {
+      const match = text.trim().match(/^([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*,\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))$/);
+      if (!match) return null;
+      const lat = Number(match[1]);
+      const lng = Number(match[2]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+        return { error: 'Use latitude, longitude: latitude must be between -90 and 90, and longitude between -180 and 180.' };
+      }
+      return { key: null, lat, lng, label: `${lat.toFixed(6)}, ${lng.toFixed(6)}` };
+    }
+
     function resolvePlace(text) {
       if (!text) return null;
+      const coordinate = parseCoordinate(text);
+      if (coordinate) return coordinate.error ? null : coordinate;
       const query = normalizeText(text);
       let best = null;
 
@@ -3495,14 +3554,18 @@
     }
 
     function parseTripQuery(raw) {
-      const q = normalizeText(raw);
+      // Preserve coordinate decimal points, signs and commas while parsing
+      // sentence structure. Place matching still normalizes landmark names.
+      const q = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().replace(/[^a-z0-9+.,\-\s]+/g, ' ').replace(/\s+/g, ' ').trim();
       let m;
 
       const build = (originText, destText) => ({
         originText,
         destText,
         origin: originText ? resolvePlace(originText) : null,
-        destination: destText ? resolvePlace(destText) : null
+        destination: destText ? resolvePlace(destText) : null,
+        error: (originText && parseCoordinate(originText)?.error) || (destText && parseCoordinate(destText)?.error)
       });
 
       m = q.match(/\bfrom\s+(.+?)\s+to\s+(.+)$/);
@@ -3521,16 +3584,10 @@
       if (m) {
         const origin = resolvePlace(m[1]);
         const destination = resolvePlace(m[2]);
-        if (origin || destination) return build(m[1], m[2]);
+        if (origin || destination || parseCoordinate(m[1]) || parseCoordinate(m[2])) return build(m[1], m[2]);
       }
 
-      const destination = resolvePlace(q);
-      return {
-        originText: null,
-        destText: destination ? null : q,
-        origin: null,
-        destination
-      };
+      return build(null, q);
     }
 
     function supportedPlacesText() {
@@ -4001,6 +4058,7 @@
         return;
       }
 
+      setDestinationMarker(destination, true);
       const trip = findTrip(origin, destination);
       if (!trip) {
         const from = origin.label || 'your location';
@@ -4285,6 +4343,7 @@
 
     function clearTripDisplay() {
       if (tripLayer) tripLayer.clearLayers();
+      clearDestinationMarker();
       animationRange = { start: 0, end: 1 };
       animProgress = 0;
       document.getElementById('progress-bar').value = 0;
@@ -4364,15 +4423,7 @@
         boundsPoints.push(...coords);
       });
 
-      const destinationIcon = L.divIcon({
-        html: '<div style="background:#ef4444;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);font-size:14px">🏁</div>',
-        className: '',
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
-      });
-      L.marker([trip.destination.lat, trip.destination.lng], { icon: destinationIcon, bubblingMouseEvents: true })
-        .addTo(tripLayer)
-        .bindTooltip(trip.destination.label);
+      setDestinationMarker(trip.destination);
 
       const rides = trip.legs.filter(leg => leg.type === 'ride');
       rides.slice(0, -1).forEach(leg => {
@@ -4387,7 +4438,12 @@
       const bounds = L.latLngBounds(
         boundsPoints.concat([[trip.origin.lat, trip.origin.lng], [trip.destination.lat, trip.destination.lng]])
       );
-      map.fitBounds(bounds, { padding: [50, 50] });
+      const labelSize = destinationMarker.getTooltip().getElement().getBoundingClientRect();
+      const compact = map.getSize().y < 240;
+      map.fitBounds(bounds, {
+        paddingTopLeft: compact ? [45, 60] : [100, labelSize.height + 60],
+        paddingBottomRight: [compact ? labelSize.width + 45 : 100, 35]
+      });
 
       if (rides.length > 0) {
         const first = rides[0];
@@ -4481,6 +4537,7 @@
 
     function locateUser(destination = null) {
       cancelLocationRequest();
+      if (destination) setDestinationMarker(destination, true);
       const attempt = locateAttempt;
       awaitingMapPick = false;
 
@@ -4548,7 +4605,13 @@
 
       const parsed = parseTripQuery(query);
 
-      if (parsed.destination && parsed.origin && parsed.origin.key === parsed.destination.key) {
+      if (parsed.error) {
+        renderRouteList(davaoRoutes, escapeHtml(parsed.error));
+        return;
+      }
+
+      if (parsed.destination && parsed.origin && haversineDistance(
+          [parsed.origin.lat, parsed.origin.lng], [parsed.destination.lat, parsed.destination.lng]) < 1) {
         renderRouteList(davaoRoutes, `You're already at <b>${escapeHtml(parsed.destination.label)}</b>. Enter a different destination.`);
         return;
       }
