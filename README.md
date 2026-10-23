@@ -4,7 +4,10 @@ An interactive, single-file web app for exploring Davao City PUJ (jeepney) route
 planning a commute, and animating a jeepney along the chosen road path.
 
 This repository is an exploratory spike for a planned public app, with
-advertising as the intended monetization model.
+advertising as the intended monetization model. The product inspiration is a
+Singapore transit app that brings bus and train routes together in one place;
+the Davao spike begins with local jeepney routes. Product direction and
+milestones are recorded in [`ROADMAP.md`](ROADMAP.md#product-direction).
 
 The app ships five verified routes, a simple trip planner, and a map with an
 animated jeepney marker.
@@ -39,12 +42,30 @@ animated jeepney marker.
 | App logic | Vanilla JavaScript (no framework, no bundler) |
 | Data storage | Route/landmark data inlined in `index.html` |
 | Place lookup | Google Places API (New), optional key; OpenStreetMap Nominatim fallback |
+| Walking paths | OSRM HTTP API, with straight-line connectors when unavailable |
 | Local dev server | `run.sh` (Python `http.server` via `uv`) |
 | Browser APIs | Geolocation, `requestAnimationFrame`, DOM, `fetch`, `localStorage` |
 
 There is **no build step and no package manifest**. The app is one HTML file plus
 a small server helper. Internet access is required for the Leaflet CDN and OSM
 map tiles; application styling does not require a network request.
+
+Development and verification tooling:
+
+| Purpose | Tool |
+| --- | --- |
+| Editor | Zed |
+| Firefox browser MCP | Firefox DevTools MCP (`@mozilla/firefox-devtools-mcp-moz`), configured in Zed |
+| Chrome browser MCP | Chrome DevTools MCP, optional through the CDP setup in `AGENTS.md` |
+| Browser regression checks | Playwright with Firefox and installed Google Chrome; `playwright-cli` for interactive checks |
+| Real Firefox location diagnostics | Python standard library + Marionette, using isolated browser profiles |
+| JavaScript syntax verification | Node.js `node --check` |
+
+Browser MCP servers and diagnostic tools are used during development; visitors
+only run the web app. GeoClue was investigated and then removed from the local
+development system. The app requests location through the browser Geolocation API.
+The planned public release and ad-supported revenue model are recorded in
+[`ROADMAP.md`](ROADMAP.md#product-direction).
 
 ## Getting started
 
@@ -85,6 +106,9 @@ DavaoRoutes/
 ├── index.html   # entire application (UI, data, planner, map, animation)
 ├── run.sh       # threaded local static server (default port 8000)
 ├── README.md
+├── ROADMAP.md   # product direction, milestones, and investigation findings
+├── tools/
+│   └── geolocation/ # native Firefox probes and mocked browser regression checks
 └── AGENTS.md    # notes for coding agents
 ```
 
@@ -161,9 +185,14 @@ Saved geolocation diagnostics and browser regression checks are in
 [`tools/geolocation/`](tools/geolocation/README.md), with runnable commands and
 the current investigation findings.
 
-- **Playwright + headless Chromium/Chrome** — page-load, route-render, route
-  selection, animation, and trip-planning checks. CLI helper `playwright-cli` is
-  also available for interactive snapshots.
+- **Playwright + Firefox and Chromium/Chrome** — page-load, route-render, route
+  selection, animation, trip-planning, and mocked geolocation checks. CLI helper
+  `playwright-cli` is also available for interactive snapshots.
+- **Firefox DevTools MCP / Chrome DevTools MCP** — browser inspection tooling;
+  Firefox MCP is configured in Zed, and the optional Chrome CDP workflow is
+  documented in `AGENTS.md`.
+- **Installed Firefox + Marionette** — real-provider and local-provider location
+  probes that disable automation's usual geolocation overrides.
 - **OSRM public router API** — generated road-following polylines
   (`overview=full&geometries=geojson`) and step-by-step street verification.
 - **Google Maps** — preferred source for place coordinates (Sasa Wharf, Indangan,

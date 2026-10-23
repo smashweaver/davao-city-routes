@@ -1,5 +1,35 @@
 # Roadmap — Davao Jeep Routes
 
+## Product direction
+
+This project is an exploratory spike for a Davao commute app. The intention is
+to turn the findings into a maintained app for public use, with advertising as
+the revenue model.
+
+- **Current stage:** validate route exploration, commute planning, automatic
+  location, and the experience on desktop and mobile.
+- **Public app:** carry the proven behavior and investigation findings forward
+  into the version people will use publicly.
+- **Monetization:** support the public app through ads. The ad provider,
+  placements, and integration are still to be decided; ads are not implemented.
+
+### Product inspiration
+
+The inspiration is a Singapore transit app that brings bus and train routes
+around the city into one place. Its name has not yet been recorded.
+
+Use that experience as a reference for making Davao's transport network easy to
+explore and journeys easy to plan. The current spike starts with local jeepney
+routes; use the Singapore reference to guide the route map, search, and journey
+planning experience as the public app develops.
+
+### Milestones toward the public app
+
+- [ ] Establish reliable real-device location and decide which browsers to support.
+- [ ] Validate route information and trip results with real commute examples.
+- [ ] Validate the mobile experience for everyday use.
+- [ ] Plan and implement the public release and advertising integration.
+
 ## Firefox freezing (priority)
 
 Symptom: page can lock up in Firefox (Linux), especially around geolocation and
@@ -26,6 +56,9 @@ after installing GeoClue; the underlying browser/OS cause is still unconfirmed.
   `geoclue-demo-agent.service`. The same D-Bus call now succeeds in about 0.05s.
   `/etc/xdg/autostart/geoclue-demo-agent.desktop` already exists for future logins;
   no additional autostart file was needed.
+- GeoClue was subsequently purged from the development system at the user's
+  request, including its configuration and autostart entry. The session agent
+  was stopped. The Firefox direct-network-provider preference remains in place.
 - A minimal page in the installed Firefox stayed responsive but timed out with
   the original GeoClue setup. The reported full-browser freeze has not yet been
   reproduced in this isolated test.
@@ -71,6 +104,8 @@ after installing GeoClue; the underlying browser/OS cause is still unconfirmed.
 - [ ] Keep PUJ as the primary, verified mode.
 
 ## General
+- [ ] Investigate bounding the map to Davao City's boundaries, including how
+      panning and zooming should behave. Record the approach before implementation.
 - [ ] Persist Google Places key handling docs (already localStorage-only).
 - [ ] Add offline-capable tile/cache strategy (optional).
 - [ ] Improve walk routing (user-editable or Google Directions integration).
