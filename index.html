@@ -3116,6 +3116,7 @@
 
     let userLocation = null; // last GPS or typed origin
     let pendingDestination = null;
+    let awaitingMapPick = false;
     let locateAttempt = 0;
 
     // --- PLACES ---
@@ -4031,6 +4032,14 @@
         polylineLayers[route.id] = polyline;
       });
 
+      map.on('click', e => {
+        if (!awaitingMapPick) return;
+        awaitingMapPick = false;
+        const target = pendingDestination;
+        pendingDestination = null;
+        applyUserLocation(e.latlng.lat, e.latlng.lng, target);
+      });
+
       tripLayer = L.layerGroup().addTo(map);
       selectRoute(davaoRoutes[0]);
       renderRouteList(davaoRoutes, 'Tap <b>My Location</b> and tell me where you\'re going. You can also type <b>from Matina to Abreeza</b>.');
@@ -4187,9 +4196,45 @@
       btn.innerHTML = '📍 My Location';
     }
 
+    // Firefox on Linux relies on GeoClue; when it is missing, calling the
+    // Geolocation API can freeze the whole browser with no way for page JS to
+    // cancel it. Detect that platform and let the user pick their spot on the
+    // map instead (accurate, and no native call).
+    function isLinuxFirefox() {
+      const ua = navigator.userAgent || '';
+      return /Firefox\//.test(ua) && /Linux/.test(ua);
+    }
+
+    function applyUserLocation(lat, lng, destination) {
+      userLocation = { lat, lng, label: 'My Location' };
+      setOriginMarker(userLocation);
+      map.setView([lat, lng], 14);
+      restoreLocateButton();
+      if (destination) {
+        planTrip(userLocation, destination);
+      } else {
+        showIdleState('Location set. Where do you want to go?');
+      }
+    }
+
+    function promptMapPick(destination) {
+      awaitingMapPick = true;
+      pendingDestination = destination;
+      const btn = document.getElementById('locate-btn');
+      btn.disabled = true;
+      btn.classList.add('opacity-60');
+      btn.textContent = '🖱️ Tap your spot on the map';
+      renderRouteList(davaoRoutes, 'Firefox on Linux can\'t read GPS here (it can freeze the browser). <b>Tap your location on the map</b>, or type a starting point like <b>from Flores to Abreeza</b>.');
+    }
+
     function locateUser(destination = null) {
       if (!navigator.geolocation) {
         renderRouteList(davaoRoutes, 'Geolocation is not available in this browser. Type your starting point instead, e.g. <b>from Matina to Abreeza</b>.');
+        return;
+      }
+
+      if (isLinuxFirefox()) {
+        promptMapPick(destination);
         return;
       }
 

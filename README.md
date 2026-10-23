@@ -202,8 +202,10 @@ Last verified: **October 23, 2026**.
 - Typed place queries are sent to the selected geocoding provider.
 - Place lookup may be blocked on `file://`; use `./run.sh` as recommended.
 - Requires internet for the CDN assets, map tiles, and place lookup.
-- Browser geolocation on Linux Firefox can stall if the OS GeoClue service is
-  missing; the app shows a fallback message after a 9-second guard.
+- Browser geolocation on Linux Firefox can freeze the whole browser when the OS
+  GeoClue service is missing. To avoid this, "My Location" on Linux Firefox asks
+  you to tap your spot on the map (accurate, no native call) or type a starting
+  point, instead of using the Geolocation API.
 
 ## Attribution
 
