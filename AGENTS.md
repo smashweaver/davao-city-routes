@@ -10,9 +10,11 @@ manifest. Serve with `./run.sh [port]` (default 8000). Full documentation:
 
 - Read `README.md` for the current app behavior and development stack, and
   `ROADMAP.md` for product direction, open investigations, and deferred work.
+- Read `HANDOVER.md` when present for the latest checkpoint and unfinished work;
+  verify its snapshot against the current working tree before continuing.
 - Familiarize yourself with the saved tools before creating new diagnostics:
-  run `rg --files tools`, read `tools/geolocation/README.md`, and inspect the
-  relevant script or its `--help` output.
+  run `rg --files tools`, read `tools/geolocation/README.md` and
+  `tools/planner/README.md`, and inspect the relevant script or its `--help` output.
 - Discover the browser tools exposed in the current agent session. Editor MCP
   configuration does not guarantee that the same MCP is available to the agent.
 - Check `git status --short` and preserve existing uncommitted work.
@@ -21,20 +23,33 @@ manifest. Serve with `./run.sh [port]` (default 8000). Full documentation:
 - All app logic, data, planner, map, and animation live in `index.html`.
 - Route/landmark data and planner tuning constants are inlined near the landmarks
   block (`MAX_ACCESS_WALK`, `MAX_TRANSFER_WALK`, `BOARDING_PENALTY`,
-  `WALK_COST_MULTIPLIER`).
+  `WALK_COST_MULTIPLIER`, `PREFER_DIRECT_WALK`, `MAX_RIDE_CANDIDATES`,
+  `WALK_ROUTING_TIMEOUT`).
 - Routes are stored as `[lat, lng]` pairs; planner treats each route as
   bidirectional between consecutive stops.
-- Walk segments: OSRM foot profile when `walkMode === 'roads'`, else
-  straight-line connectors. Google Maps walking link always shown.
+- Walk display uses OSRM road geometry when `walkMode === 'roads'`, with
+  straight-line connectors as fallback. The `foot` URL alone does not verify
+  the server's pedestrian profile; see `tools/planner/README.md`.
+  Google Maps walking link is always shown.
 - Place lookup order: local landmarks → Google Places (New, optional key) →
   OSM Nominatim fallback. Decimal `latitude, longitude` input is parsed locally;
   a bare pair is a destination, while `from <pair> to <place>` sets the origin.
 - Nearby boarding/alighting points are inferred from route geometry as well as
-  named landmarks. Access points are estimates; candidate ranking still uses
-  straight-line walking distances before fetching walking geometry.
+  named landmarks. Access points are estimates. Shortlist up to three jeep
+  itineraries using straight-line costs, then compare routed road distances
+  before choosing. Prefer direct walks of 500 m or less; unavailable routing
+  falls back to labeled estimates. Boarding penalties apply to transfers.
 - The destination uses a separate Leaflet marker with an inline SVG flag and
   permanent label. Keep it visible while locating or reporting an unsupported
   trip, and clear it when returning to route exploration or an origin-only state.
+- The intended playback covers the full walking/jeep journey. Currently a trip
+  animates only its first ride through `activeRoute` and `animationRange`.
+  Path-intersection matching and static markers are steps toward complete
+  multi-leg animation, which remains pending; see `HANDOVER.md` and `ROADMAP.md`.
+- The intended planner output is one organized journey with origin, destination,
+  ordered tagged waypoints, and connected walk/ride paths. Map rendering and
+  playback should consume that result; the full contract is in `HANDOVER.md`
+  and remains to be implemented.
 
 ## Dev / verification
 
@@ -44,7 +59,8 @@ browser checks and geolocation.
 
 | Tool | Use it for |
 | --- | --- |
-| `tools/planner/regression_checks.py` | Direct walks, nearby route access, boarding/alighting in both directions, coordinate searches, and invalid coordinate input. |
+| `tools/planner/regression_checks.py` | Direct walks, nearby route access, coordinate input, road-detour ranking, transfer costs, deduplication, routing fallback, and stale-plan cancellation. |
+| `tools/planner/compare_walks.py` | Reusable OSRM comparison of direct, boarding-access, and alighting-egress paths; configure coordinates, router, profile, timeout, interval, user agent, steps, and JSON output through CLI parameters. See `tools/planner/README.md`. |
 | `tools/geolocation/regression_checks.py` | Mocked location ordering, cleanup, cancellation, denial, timeout, and destination preservation. |
 | `tools/geolocation/native_probe.py` | Installed Firefox's native `getCurrentPosition` provider path. |
 | `tools/geolocation/watch_probe.py` | Native location updates and coarse/precise estimate ordering. |

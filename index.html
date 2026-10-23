@@ -3266,6 +3266,7 @@
 
     let activeRoute = null;
     let currentTrip = null;
+    let tripPlanSequence = 0;
     let walkMode = 'roads'; // 'straight' | 'roads'
     let animProgress = 0; // 0 to 1 within the current animation range
     let isPlaying = false;
@@ -3321,6 +3322,9 @@
 
     const MAX_TRANSFER_WALK = 1400;
     const MAX_ACCESS_WALK = 1600;
+    const PREFER_DIRECT_WALK = 500;
+    const MAX_RIDE_CANDIDATES = 3;
+    const WALK_ROUTING_TIMEOUT = 4000;
     const LOCATION_ACCURACY_LIMIT = 500; // metres; reject broad IP estimates
     const LOCATION_TIMEOUT = 12000;
     const BOARDING_PENALTY = 4200;
@@ -3902,10 +3906,10 @@
 
     // Dijkstra over stops. The state includes the last mode and route so the
     // planner cannot chain walking transfers and can penalise extra boardings.
-    function shortestPath(adjacency, startKey, endKey) {
-      if (startKey === endKey) return { edges: [], cost: 0 };
+    function shortestPath(adjacency, startKey, endKey, requireRide = false) {
+      if (startKey === endKey) return requireRide ? null : { edges: [], cost: 0 };
 
-      const startState = `${startKey}|start|-`;
+      const startState = `${startKey}|start|-|0`;
       const dist = { [startState]: 0 };
       const previous = {};
       const queue = [[0, startState]];
@@ -3915,9 +3919,9 @@
         const [cost, state] = queue.shift();
         if (cost !== dist[state]) continue;
 
-        const [node, mode, routeId] = state.split('|');
+        const [node, mode, routeId, boarded] = state.split('|');
 
-        if (node === endKey) {
+        if (node === endKey && (!requireRide || boarded === '1')) {
           const edges = [];
           let cursor = state;
           while (previous[cursor]) {
@@ -3931,8 +3935,9 @@
           if (edge.type === 'walk' && mode === 'walk') return;
           const nextRoute = edge.type === 'ride' ? edge.route.id : '-';
           const isNewBoarding = edge.type === 'ride' && (mode !== 'ride' || routeId !== nextRoute);
-          const nextCost = cost + edge.cost + (isNewBoarding ? BOARDING_PENALTY : 0);
-          const nextState = `${edge.to}|${edge.type}|${nextRoute}`;
+          const nextCost = cost + edge.cost + (isNewBoarding && boarded === '1' ? BOARDING_PENALTY : 0);
+          const nextBoarded = edge.type === 'ride' ? '1' : boarded;
+          const nextState = `${edge.to}|${edge.type}|${nextRoute}|${nextBoarded}`;
           if (nextCost < (dist[nextState] ?? Infinity)) {
             dist[nextState] = nextCost;
             previous[nextState] = { state, edge };
@@ -4017,58 +4022,81 @@
       return { adjacency, stops, originCandidates: candidates[0], destinationCandidates: candidates[1] };
     }
 
-    function findTrip(origin, destination) {
+    function tripCost(trip) {
+      const rides = trip.legs.filter(leg => leg.type === 'ride');
+      return rides.reduce((sum, leg) => sum + leg.distance, 0) +
+        trip.totalWalk * WALK_COST_MULTIPLIER + Math.max(0, rides.length - 1) * BOARDING_PENALTY;
+    }
+
+    function chooseTrip(candidates) {
+      const shortWalk = candidates.find(trip => trip.legs.every(leg => leg.type === 'walk') &&
+        trip.totalWalk <= PREFER_DIRECT_WALK);
+      if (shortWalk) return shortWalk;
+      return [...candidates].sort((a, b) => tripCost(a) - tripCost(b) || a.totalWalk - b.totalWalk)[0] || null;
+    }
+
+    function findTripCandidates(origin, destination) {
       const { adjacency, stops, originCandidates, destinationCandidates } = buildAccessGraph(origin, destination);
       const directDistance = haversineDistance([origin.lat, origin.lng], [destination.lat, destination.lng]);
-      let bestTrip = null;
-      let bestCost = Infinity;
+      const candidates = [];
 
-      // A short direct walk competes with transit without any landmark detour.
+      // This is only a coarse search radius. A 1.5 km beeline may be a much
+      // longer road walk; planTrip measures shortlisted walks before choosing.
       if (directDistance <= MAX_ACCESS_WALK) {
-        bestTrip = { origin, destination, legs: [{ type: 'walk', from: origin, to: destination,
-          distance: directDistance }], totalWalk: directDistance, transfers: 0 };
-        bestCost = directDistance * WALK_COST_MULTIPLIER;
+        candidates.push({ origin, destination, legs: [{ type: 'walk', from: origin, to: destination,
+          distance: directDistance }], totalWalk: directDistance, transfers: 0 });
       }
 
+      const rides = new Map();
       originCandidates.forEach(o => {
         destinationCandidates.forEach(d => {
-          const path = shortestPath(adjacency, o.key, d.key);
-          if (!path || !path.edges.some(edge => edge.type === 'ride')) return;
+          const path = shortestPath(adjacency, o.key, d.key, true);
+          if (!path) return;
           const trip = buildTrip({ ...path, originStop: o, destinationStop: d, stops }, origin, destination);
-          const rides = trip.legs.filter(leg => leg.type === 'ride');
           const first = trip.legs[0], last = trip.legs.at(-1);
           if ((first.type === 'walk' && first.distance > MAX_ACCESS_WALK) ||
               (last.type === 'walk' && last.distance > MAX_ACCESS_WALK)) return;
-          // Compare the instructions we will actually show, including merged
-          // access walks, rather than charging for discarded landmark waypoints.
-          const cost = rides.reduce((sum, leg) => sum + leg.distance, 0) +
-            trip.totalWalk * WALK_COST_MULTIPLIER + rides.length * BOARDING_PENALTY;
-          if (cost < bestCost || (cost === bestCost && trip.totalWalk < bestTrip.totalWalk)) {
-            bestCost = cost;
-            bestTrip = trip;
-          }
+          const key = trip.legs.filter(leg => leg.type === 'ride').map(leg =>
+            `${leg.route.id}:${leg.fromStop}:${leg.toStop}`).join('|');
+          if (!rides.has(key) || tripCost(trip) < tripCost(rides.get(key))) rides.set(key, trip);
         });
       });
-      return bestTrip;
+      candidates.push(...[...rides.values()].sort((a, b) => tripCost(a) - tripCost(b)).slice(0, MAX_RIDE_CANDIDATES));
+      return candidates;
+    }
+
+    function findTrip(origin, destination) {
+      return chooseTrip(findTripCandidates(origin, destination));
     }
 
     async function planTrip(origin, destination) {
+      const sequence = ++tripPlanSequence;
       if (!destination || (!destination.key && !Number.isFinite(destination.lat))) {
         renderRouteList(davaoRoutes, `I couldn't find that destination. Try ${supportedPlacesText()}.`);
         return;
       }
 
       setDestinationMarker(destination, true);
-      const trip = findTrip(origin, destination);
-      if (!trip) {
+      const candidates = findTripCandidates(origin, destination);
+      if (!candidates.length) {
         const from = origin.label || 'your location';
         const to = destination.label || 'that destination';
         renderRouteList(davaoRoutes, `I couldn't connect <b>${escapeHtml(from)}</b> to <b>${escapeHtml(to)}</b> with the current routes. Try a nearby landmark or a different destination.`);
         return;
       }
 
+      renderRouteList(davaoRoutes, 'Comparing walking and jeep options along the roads…');
+      const directWalk = candidates.find(trip => trip.legs.every(leg => leg.type === 'walk'));
+      if (directWalk) await enrichWalkPaths(directWalk);
+      if (sequence !== tripPlanSequence) return;
+      // Avoid routing several transit options for an errand that is still a
+      // short walk after its real road detour has been measured.
+      if (!directWalk || directWalk.totalWalk > PREFER_DIRECT_WALK) {
+        await Promise.all(candidates.filter(trip => trip !== directWalk).map(enrichWalkPaths));
+      }
+      if (sequence !== tripPlanSequence) return;
+      const trip = chooseTrip(candidates);
       currentTrip = trip;
-      await enrichWalkPaths(trip);
       showTrip(trip);
     }
 
@@ -4077,28 +4105,48 @@
     async function fetchWalkPath(from, to) {
       const key = `${from.lat.toFixed(5)},${from.lng.toFixed(5)}->${to.lat.toFixed(5)},${to.lng.toFixed(5)}`;
       if (walkPathCache.has(key)) return walkPathCache.get(key);
-      try {
-        const url = `https://router.project-osrm.org/route/v1/foot/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        if (!res.ok) { walkPathCache.set(key, null); return null; }
-        const data = await res.json();
-        const coords = data && data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates;
-        if (!coords || !coords.length) { walkPathCache.set(key, null); return null; }
-        const path = coords.map(c => [c[1], c[0]]);
-        walkPathCache.set(key, path);
-        return path;
-      } catch (e) {
-        walkPathCache.set(key, null);
-        return null;
-      }
+      const request = (async () => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), WALK_ROUTING_TIMEOUT);
+        try {
+          const url = `https://router.project-osrm.org/route/v1/foot/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+          const res = await fetch(url, { signal: controller.signal });
+          if (!res.ok) return null;
+          const data = await res.json();
+          const coords = data && data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates;
+          if (!coords || coords.length < 2 || coords.some(c => !Array.isArray(c) || !Number.isFinite(c[0]) || !Number.isFinite(c[1]))) return null;
+          const path = coords.map(c => [c[1], c[0]]);
+          const connectors = haversineDistance([from.lat, from.lng], path[0]) +
+            haversineDistance(path.at(-1), [to.lat, to.lng]);
+          const reported = data.routes[0].distance;
+          const distance = Math.max(haversineDistance([from.lat, from.lng], [to.lat, to.lng]),
+            (Number.isFinite(reported) && reported >= 0 ? reported : buildCumulativeDistances(path).at(-1)) + connectors);
+          return { path: [[from.lat, from.lng], ...path, [to.lat, to.lng]], distance };
+        } catch (e) {
+          return null;
+        } finally {
+          clearTimeout(timer);
+        }
+      })();
+      // Cache the in-flight request too: candidate trips often share access legs.
+      walkPathCache.set(key, request);
+      request.then(result => {
+        if (!result && walkPathCache.get(key) === request) walkPathCache.delete(key);
+      });
+      return request;
     }
 
     async function enrichWalkPaths(trip) {
       const walkLegs = trip.legs.filter(leg => leg.type === 'walk');
       await Promise.all(walkLegs.map(async leg => {
-        const path = await fetchWalkPath(leg.from, leg.to);
-        if (path && path.length > 1) leg.path = path;
+        const result = await fetchWalkPath(leg.from, leg.to);
+        if (result) {
+          leg.path = result.path;
+          leg.distance = result.distance;
+        }
       }));
+      trip.totalWalk = walkLegs.reduce((sum, leg) => sum + leg.distance, 0);
+      trip.estimatedWalking = walkLegs.some(leg => !leg.path);
     }
 
     function buildTrip(best, origin, destination) {
@@ -4269,7 +4317,7 @@
       const rides = trip.legs.filter(leg => leg.type === 'ride');
       const estimatedAccess = rides.some(leg => trip.stops?.[leg.fromStop]?.estimated || trip.stops?.[leg.toStop]?.estimated);
       const summary = rides.length === 0
-        ? 'Everything is within walking distance.'
+        ? 'Walk directly to your destination.'
         : `${rides.length === 1 ? 'Direct jeepney ride' : `${trip.transfers} transfer${trip.transfers > 1 ? 's' : ''}`} · ${formatDistance(trip.totalWalk)} walking`;
 
       const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${trip.origin.lat},${trip.origin.lng}&destination=${trip.destination.lat},${trip.destination.lng}&travelmode=walking`;
@@ -4277,6 +4325,7 @@
         <div class="trip-title">Trip to ${escapeHtml(trip.destination.label)}</div>
         <ol class="trip-legs">${legsHtml}</ol>
         <div class="trip-summary">${summary} · dashed walks follow roads (OSRM) when available</div>
+        ${trip.estimatedWalking ? '<div class="trip-summary">Road routing was unavailable for some walks; those distances are straight-line estimates.</div>' : ''}
         ${estimatedAccess ? '<div class="trip-summary">Nearby road access is estimated from the jeep route. Check the actual boarding spot and road crossing before travelling.</div>' : ''}
         <div><a class="trip-link" href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Walking directions on Google Maps ↗</a></div>
         <div class="walk-mode-row">
@@ -4342,6 +4391,7 @@
     }
 
     function clearTripDisplay() {
+      tripPlanSequence++;
       if (tripLayer) tripLayer.clearLayers();
       clearDestinationMarker();
       animationRange = { start: 0, end: 1 };
@@ -4536,6 +4586,7 @@
     }
 
     function locateUser(destination = null) {
+      tripPlanSequence++;
       cancelLocationRequest();
       if (destination) setDestinationMarker(destination, true);
       const attempt = locateAttempt;
@@ -4597,6 +4648,7 @@
     async function handleSearch(raw) {
       const query = raw.trim();
       if (!query) return;
+      tripPlanSequence++;
       cancelLocationRequest();
       awaitingMapPick = false;
       pendingDestination = null;

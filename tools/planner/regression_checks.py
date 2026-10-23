@@ -2,6 +2,8 @@
 
 import argparse
 import asyncio
+import math
+from urllib.parse import urlsplit
 
 from playwright.async_api import async_playwright
 
@@ -190,6 +192,99 @@ async def check(browser_type, url):
         assert not geocode_requests, geocode_requests
         assert not errors, errors
         print('PASS: pasted coordinates work as destinations and origins without place lookup; invalid ranges are explained', flush=True)
+
+        # A nearby destination can require a long road detour. Use approximate
+        # neighborhood fixtures, rather than recording exact device coordinates.
+        await context.unroute('**/router.project-osrm.org/**', walking_route)
+        road_requests = []
+        origin = [125.5601, 7.0558]
+        destination = [125.5688, 7.0453]
+
+        async def detour_route(route):
+            road_requests.append(route.request.url)
+            parts = urlsplit(route.request.url).path.rsplit('/', 1)[1].split(';')
+            start, end = [[float(n) for n in point.split(',')] for point in parts]
+            a, b = math.radians(start[1]), math.radians(end[1])
+            delta_lat, delta_lng = b-a, math.radians(end[0]-start[0])
+            straight = 6371000 * 2 * math.asin(math.sqrt(math.sin(delta_lat/2)**2 +
+                math.cos(a)*math.cos(b)*math.sin(delta_lng/2)**2))
+            distance = 3600 if start == origin and end == destination else straight * 1.25
+            await route.fulfill(json={'code':'Ok','routes':[{'distance':distance,
+                'geometry':{'coordinates':[start,end]}}]})
+
+        await context.route('**/router.project-osrm.org/**', detour_route)
+        result = await page.evaluate('''async () => {
+          walkPathCache.clear();
+          const origin={lat:7.0558,lng:125.5601,label:'Neighborhood origin'};
+          const destination={lat:7.0453,lng:125.5688,label:'Neighborhood destination'};
+          const before=findTrip(origin,destination).legs.map(leg=>leg.type);
+          await planTrip(origin,destination);
+          window.detourFixture={origin,destination};
+          return {before,types:currentTrip.legs.map(leg=>leg.type),walk:currentTrip.totalWalk,
+            firstWalk:currentTrip.legs[0].distance,to:currentTrip.legs[0].to.label,
+            routes:currentTrip.legs.filter(leg=>leg.type==='ride').map(leg=>leg.route.id),
+            estimated:currentTrip.estimatedWalking};
+        }''')
+        assert result['before'] == ['walk'], result
+        assert result['types'] == ['walk','ride','walk'], result
+        assert result['routes'][0] in ['toril','mintal'], result
+        assert 700 < result['firstWalk'] < 850 and result['walk'] < 3000, result
+        assert 'nearby road' in result['to'] and not result['estimated'], result
+        assert len(road_requests) <= 7 and len(road_requests) == len(set(road_requests)), road_requests
+        assert 'Direct jeepney ride' in await page.locator('.trip-summary').first.inner_text()
+        print('PASS: a long road detour changes the winner from walking to walk–jeep–walk; shared path requests are deduplicated', flush=True)
+
+        # Keep searching for a ride when a graph-only walking path is cheaper;
+        # charge the boarding penalty only for subsequent rides, even after a walk.
+        result = await page.evaluate('''() => {
+          const a=davaoRoutes[0],b=davaoRoutes[1];
+          const graph={a:[{type:'walk',from:'a',to:'b',cost:100},
+            {type:'ride',from:'a',to:'b',route:a,cost:200}],
+            b:[{type:'ride',from:'b',to:'c',route:b,cost:300}]};
+          return {walk:shortestPath(graph,'a','b').edges[0].type,
+            ride:shortestPath(graph,'a','b',true).edges[0].type,
+            first:shortestPath(graph,'a','b',true).cost,
+            afterWalk:shortestPath(graph,'a','c',true).cost,
+            twoRides:tripCost({legs:[{type:'ride',distance:200},{type:'ride',distance:300}],totalWalk:0}),
+            expectedTransfer:500+BOARDING_PENALTY};
+        }''')
+        assert result['walk'] == 'walk' and result['ride'] == 'ride', result
+        assert result['first'] == 200 and result['afterWalk'] == 400, result
+        assert result['twoRides'] == result['expectedTransfer'], result
+
+        # A pending routing response must not replace a newer starting point.
+        await context.unroute('**/router.project-osrm.org/**', detour_route)
+        release = asyncio.Event()
+        started = asyncio.Event()
+
+        async def delayed_route(route):
+            started.set()
+            await release.wait()
+            await route.fulfill(status=503, body='Delayed road lookup failure')
+
+        await context.route('**/router.project-osrm.org/**', delayed_route)
+        await page.evaluate('''() => {
+          walkPathCache.clear();
+          window.oldPlan=planTrip(detourFixture.origin,detourFixture.destination);
+        }''')
+        await asyncio.wait_for(started.wait(), timeout=5)
+        await page.locator('#chat-input').fill("I'm at Abreeza")
+        await page.locator('#search-btn').click()
+        release.set()
+        await page.evaluate('oldPlan')
+        assert 'Starting point set to' in await page.locator('.assistant-card').inner_text()
+        assert await page.evaluate('userLocation.key') == 'abreeza'
+        await context.unroute('**/router.project-osrm.org/**', delayed_route)
+
+        await context.route('**/router.project-osrm.org/**', walking_route)
+        await page.evaluate('''async () => {
+          walkPathCache.clear();
+          await planTrip(detourFixture.origin,detourFixture.destination);
+        }''')
+        assert await page.evaluate('currentTrip.estimatedWalking')
+        assert 'straight-line estimates' in await page.locator('.assistant-card').inner_text()
+        assert not errors, errors
+        print('PASS: first rides avoid a transfer penalty; unavailable routing is labeled and stale plans cannot replace newer input', flush=True)
     finally:
         await browser.close()
 

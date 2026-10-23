@@ -8,6 +8,9 @@ advertising as the intended monetization model. The product inspiration is a
 Singapore transit app that brings bus and train routes together in one place;
 the Davao spike begins with local jeepney routes. Product direction and
 milestones are recorded in [`ROADMAP.md`](ROADMAP.md#product-direction).
+The next goal is to animate the complete journey: walking to board, all jeep
+rides and transfers, and walking to the destination. Current trip playback
+covers only the first jeep ride; full-journey animation is still planned.
 
 The app ships five verified routes, a simple trip planner, and a map with an
 animated jeepney marker.
@@ -30,7 +33,8 @@ animated jeepney marker.
 - **Trip planner** — Dijkstra over a stop graph. It supports transfers, penalizes
   extra boardings, and allows limited walking between nearby stops. It also
   considers nearby access points along mapped jeep route lines, so a boarding
-  walk need not end at a named landmark. Short direct walks compete with rides.
+  walk need not end at a named landmark. It compares road-routing distances for
+  shortlisted trips before choosing; short direct walks remain preferred.
 - **Route animation** — play/pause, scrub, speed control (1x/2x/5x), and a
   follow-camera option that animates a jeepney marker along the route.
 - **Geolocation** — "My Location" watches for a fix with reported accuracy of
@@ -122,7 +126,7 @@ DavaoRoutes/
 ├── ROADMAP.md   # product direction, milestones, and investigation findings
 ├── tools/
 │   ├── geolocation/ # native Firefox probes and mocked browser regression checks
-│   └── planner/     # direct-walk and nearby route-access regression checks
+│   └── planner/     # road-path comparison CLI and planner regression checks
 └── AGENTS.md    # notes for coding agents
 ```
 
@@ -145,8 +149,14 @@ For each trip, it projects the origin and destination onto each nearby route
 line and splits the graph's ride edges at those points. These temporary access
 points do not change the landmark dataset. Instructions label them as estimated
 road access, since route geometry alone does not confirm a designated stop.
-Trip costs include riding distance, walking distance, and boarding penalties;
-a direct walk of up to `MAX_ACCESS_WALK` is also considered.
+Trip costs include riding distance, walking distance, and a penalty for each
+transfer. The first ride has no transfer penalty. A direct walk is considered
+when its straight-line distance is within `MAX_ACCESS_WALK`; its routed length
+may be substantially longer. The planner measures that road path before
+deciding whether it is a short errand, then measures up to three shortlisted
+jeep itineraries and ranks them using the returned road distances. Direct walks
+of 500 m or less remain preferred. Shared requests are cached; failures and
+four-second timeouts fall back to labeled straight-line estimates.
 
 ### Planner tuning
 
@@ -154,9 +164,12 @@ Defined near the landmarks block in `index.html`:
 
 | Constant | Value | Purpose |
 | --- | --- | --- |
-| `MAX_ACCESS_WALK` | 1600 m | Max walk from a typed/current location to a boarding stop |
+| `MAX_ACCESS_WALK` | 1600 m | Straight-line search radius for access and direct-walk candidates; routed walks can be longer |
+| `PREFER_DIRECT_WALK` | 500 m | Prefer a direct walk when its measured length is within this limit |
+| `MAX_RIDE_CANDIDATES` | 3 | Maximum jeep itineraries refined with road-routing distances |
+| `WALK_ROUTING_TIMEOUT` | 4000 ms | Per-request routing timeout before estimated fallback |
 | `MAX_TRANSFER_WALK` | 1400 m | Max walk when transferring between stops |
-| `BOARDING_PENALTY` | 4200 | Cost added for each new boarding, discouraging unnecessary transfers |
+| `BOARDING_PENALTY` | 4200 | Cost for boarding again after the first ride, discouraging unnecessary transfers |
 | `WALK_COST_MULTIPLIER` | 3 | Makes walking "costlier" than the same distance ridden |
 
 ## Data sources and provenance
@@ -205,6 +218,11 @@ Saved geolocation diagnostics and browser regression checks are in
 [`tools/geolocation/`](tools/geolocation/README.md), with runnable commands and
 the current investigation findings.
 
+Reusable road-path comparison and planner checks are in
+[`tools/planner/`](tools/planner/README.md). The standard-library comparison CLI
+accepts origin, destination, boarding and alighting coordinates, router URL,
+profile, timeout, request interval, user agent, steps, and JSON output settings.
+
 - **Playwright + Firefox and Chromium/Chrome** — page-load, route-render, route
   selection, animation, trip-planning, and mocked geolocation checks. CLI helper
   `playwright-cli` is also available for interactive snapshots.
@@ -252,6 +270,18 @@ temporary and removed after the route data was written into `index.html`.
   directions, estimated access labels, query isolation, coordinate input with
   full numeric precision, and invalid-coordinate messages. Coordinate searches
   bypass external place lookup.
+- Road-detour checks confirm that a long routed walk can change the winner to
+  walk–jeep–walk, shared requests are deduplicated, transfer penalties exclude
+  the first ride, failures are labeled, and older results cannot replace newer input.
+- An approved live check with the reported Bangkal trip reproduced a roughly
+  1.5 km beeline versus a 3.6 km road path. The revised app chose roughly 790 m
+  of access walking, a Toril ride, and a remaining walk of about 1.7 km. The
+  remaining walk/ride boundaries still need overlap refinement: part of that
+  final walk may follow an already mapped jeep route.
+- The reusable comparison CLI was checked against local mocked responses for
+  custom server prefixes, coordinate order, profile, timeout, user agent, step
+  and output options, invalid input, and structured failures. A live comparison
+  using supplied coordinates also succeeded.
 - Destination graphics were visually inspected in Firefox at 1440×900,
   390×844, and 390×650. The pin and permanent label fit within the map; the
   label moves beside the pin on short maps. Checks also confirmed that route
@@ -275,8 +305,12 @@ route checks on October 23).
   the nearest point on a route.
 - Nearby road access is inferred from route geometry. It does not verify legal
   stops, the correct side of the road, pedestrian entrances, or safe crossings.
-  Selection uses straight-line walking estimates; OSRM geometry is requested
-  after choosing the trip and does not yet affect candidate ranking.
+  Initial candidate generation uses straight-line estimates; road-distance
+  refinement covers only the shortlist and does not guarantee a global optimum.
+- The existing OSRM endpoint's `foot` path does not itself verify pedestrian
+  routing: [OSRM profiles are fixed by server preparation](https://project-osrm.org/docs/v5.24.0/api/#general-options).
+  Treat its paths as road estimates, and do not use returned durations as walking
+  times. A verified pedestrian-routing provider is still needed.
 - Routes are modeled as bidirectional lines even where the real service is a
   one-way loop (notably Route 10 southbound).
 - Fares are indicative, not an LTFRB fare matrix.

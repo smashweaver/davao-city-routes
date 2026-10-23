@@ -129,15 +129,45 @@ after installing GeoClue; the underlying browser/OS cause is still unconfirmed.
 - [x] Show a destination flag pin and permanent label, including while finding
       the starting point or when the current route network cannot connect a trip.
 
+## Full-journey animation
+
+The goal is to animate the complete journey through walking and jeep-ride
+waypoints. Intersection matching provides the boarding/alighting boundaries;
+static waypoint markers alone do not fulfill this goal.
+
+- [ ] Return one organized journey result containing origin, destination,
+      ordered tagged waypoints, and connecting walk/ride legs with geometry.
+      Use that result for instructions, map display, and animation.
+- [ ] Animate access walking, every jeep ride and transfer, and final walking
+      to the destination in sequence, using the geometry of each trip leg.
+- [ ] Change the moving marker between walking and jeep representations at
+      boarding/alighting points without jumps between disconnected paths.
+- [ ] Extend play/pause, speed, follow-camera, and the progress slider across
+      the complete journey; preserve standalone route playback.
+- [ ] Verify walking-only, walk–ride–walk, and multi-ride journeys, including
+      scrubbing across mode changes and reaching the destination.
+
+Current trip playback covers only the first jeep ride. Whole-journey playback
+is not implemented yet.
+
 ## Boarding points and route finding
 - [x] Consider nearby points along mapped jeep route lines when choosing the
       initial boarding point, rather than requiring a walk to a named landmark.
 - [x] Compare short direct walks with transit and remove landmark detours from
       walking-only trips.
+- [x] Compare road distances for the direct walk and shortlisted jeep options
+      before choosing a trip; apply the boarding penalty only to transfers.
+- [ ] Use Turf overlap/intersection operations on existing walking and jeep
+      paths to select boarding/alighting boundaries and convert shared walking
+      sections into rides. Approved approach; implementation is still pending.
+- [ ] Show static BOARD and GET OFF markers for every ride, including a single
+      jeep trip; retain dashed walking links and solid ride sections.
 - [ ] Validate the Flores Village / Bangkal boarding location on the ground,
       including entrances, the correct side of the road, and permitted stops.
 - [ ] Rank access points using actual pedestrian routes, accounting for gates,
       barriers, crossings, and walking detours before selecting a trip.
+- [ ] Verify a pedestrian-routing provider; an OSRM URL containing `foot`
+      does not establish which transport profile its server actually uses.
 - [ ] Add verified boarding/alighting stops and road names along route segments;
       distinguish designated bus stops from inferred jeepney road access.
 
