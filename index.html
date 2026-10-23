@@ -3106,6 +3106,8 @@
     let tripLayer = null;
 
     let activeRoute = null;
+    let currentTrip = null;
+    let walkMode = 'straight'; // 'straight' | 'roads'
     let animProgress = 0; // 0 to 1 within the current animation range
     let isPlaying = false;
     let animSpeed = 0.0008;
@@ -3741,7 +3743,7 @@
         .slice(0, 8);
     }
 
-    function planTrip(origin, destination) {
+    async function planTrip(origin, destination) {
       if (!destination || (!destination.key && !Number.isFinite(destination.lat))) {
         renderRouteList(davaoRoutes, `I couldn't find that destination. Try ${supportedPlacesText()}.`);
         return;
@@ -3783,7 +3785,38 @@
       }
 
       const trip = buildTrip(best, origin, destination);
+      currentTrip = trip;
+      await enrichWalkPaths(trip);
       showTrip(trip);
+    }
+
+    const walkPathCache = new Map();
+
+    async function fetchWalkPath(from, to) {
+      const key = `${from.lat.toFixed(5)},${from.lng.toFixed(5)}->${to.lat.toFixed(5)},${to.lng.toFixed(5)}`;
+      if (walkPathCache.has(key)) return walkPathCache.get(key);
+      try {
+        const url = `https://router.project-osrm.org/route/v1/foot/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        if (!res.ok) { walkPathCache.set(key, null); return null; }
+        const data = await res.json();
+        const coords = data && data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates;
+        if (!coords || !coords.length) { walkPathCache.set(key, null); return null; }
+        const path = coords.map(c => [c[1], c[0]]);
+        walkPathCache.set(key, path);
+        return path;
+      } catch (e) {
+        walkPathCache.set(key, null);
+        return null;
+      }
+    }
+
+    async function enrichWalkPaths(trip) {
+      const walkLegs = trip.legs.filter(leg => leg.type === 'walk');
+      await Promise.all(walkLegs.map(async leg => {
+        const path = await fetchWalkPath(leg.from, leg.to);
+        if (path && path.length > 1) leg.path = path;
+      }));
     }
 
     function buildTrip(best, origin, destination) {
@@ -3941,12 +3974,25 @@
         ? 'Everything is within walking distance.'
         : `${rides.length === 1 ? 'Direct jeepney ride' : `${trip.transfers} transfer${trip.transfers > 1 ? 's' : ''}`} · ${formatDistance(trip.totalWalk)} walking`;
 
+      const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${trip.origin.lat},${trip.origin.lng}&destination=${trip.destination.lat},${trip.destination.lng}&travelmode=walking`;
       const box = chatBox(`
         <div class="font-semibold text-emerald-300">Trip to ${escapeHtml(trip.destination.label)}</div>
         <ol class="mt-2 space-y-2">${legsHtml}</ol>
-        <div class="mt-2 text-[10px] text-slate-400">${summary}</div>
+        <div class="mt-2 text-[10px] text-slate-400">${summary} · dashed walks follow roads (OSRM) when available</div>
+        <div class="mt-2"><a class="text-sky-300 underline text-xs" href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Walking directions on Google Maps ↗</a></div>
+        <div class="mt-2 flex items-center gap-2 text-[10px] text-slate-400">
+          <span>Walk display:</span>
+          <button id="walk-mode-btn" class="px-2 py-0.5 rounded bg-slate-800 text-slate-200 hover:bg-slate-700">${walkMode === 'roads' ? 'Roads' : 'Straight'}</button>
+          <span class="text-slate-500">${walkMode === 'roads' ? 'OSRM road-following (may detour)' : 'straight-line connectors'}</span>
+        </div>
       `);
       container.appendChild(box);
+
+      const walkBtn = document.getElementById('walk-mode-btn');
+      if (walkBtn) walkBtn.onclick = () => {
+        walkMode = (walkMode === 'roads') ? 'straight' : 'roads';
+        if (currentTrip) { showTrip(currentTrip); renderTripSummary(currentTrip); }
+      };
 
       const heading = document.createElement('div');
       heading.className = 'text-[10px] uppercase tracking-wide text-slate-500 pt-1';
@@ -4063,7 +4109,7 @@
             color: leg.route.color, weight: 8, opacity: 1, lineJoin: 'round'
           }).addTo(tripLayer);
         } else {
-          coords = [[leg.from.lat, leg.from.lng], [leg.to.lat, leg.to.lng]];
+          coords = (walkMode === 'roads' && leg.path && leg.path.length > 1) ? leg.path : [[leg.from.lat, leg.from.lng], [leg.to.lat, leg.to.lng]];
           L.polyline(coords, {
             color: '#94a3b8', weight: 4, opacity: 0.9, dashArray: '6 8'
           }).addTo(tripLayer);
