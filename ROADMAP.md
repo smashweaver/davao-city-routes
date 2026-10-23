@@ -30,6 +30,25 @@ planning experience as the public app develops.
 - [ ] Validate the mobile experience for everyday use.
 - [ ] Plan and implement the public release and advertising integration.
 
+### Bus routes and free-ride services
+
+- [ ] Identify and map **Love Bus** and **Davao City Bus / DC Bus (Davao City
+      Interim Bus Service)** routes alongside jeepney routes.
+- [ ] Verify each service's boarding and alighting stops, route directions,
+      operating days and hours, and current free-ride or fare rules. Record
+      official sources and the date checked before adding them to trip planning.
+- [ ] Investigate whether the free-ride services collect commuter feedback to
+      refine routes. This is a user hypothesis to verify, not an established
+      explanation for the free rides.
+- [ ] Plan how bus and jeepney options, transfers, and service availability will
+      appear together in search and trip results.
+
+Research starting points: the [official Davao Bus portal](https://davaobus.davaocity.gov.ph/)
+links to live DC Bus locations and route information. A
+[March 18, 2026 Philippine Information Agency report](https://pia.gov.ph/news/buses-offering-free-rides-continue-serving-davao-city/)
+documents free rides on both Love Bus and DC Bus; recheck current operations
+before treating routes, schedules, or free fares as app data.
+
 ## Firefox freezing (priority)
 
 Symptom: page can lock up in Firefox (Linux), especially around geolocation and
@@ -102,6 +121,18 @@ after installing GeoClue; the underlying browser/OS cause is still unconfirmed.
 - [ ] Route walks/rides per mode (OSRM profiles: foot, driving, cycling/bike).
 - [ ] Show mode-appropriate fares/costs and travel time.
 - [ ] Keep PUJ as the primary, verified mode.
+
+## Boarding points and route finding
+- [x] Consider nearby points along mapped jeep route lines when choosing the
+      initial boarding point, rather than requiring a walk to a named landmark.
+- [x] Compare short direct walks with transit and remove landmark detours from
+      walking-only trips.
+- [ ] Validate the Flores Village / Bangkal boarding location on the ground,
+      including entrances, the correct side of the road, and permitted stops.
+- [ ] Rank access points using actual pedestrian routes, accounting for gates,
+      barriers, crossings, and walking detours before selecting a trip.
+- [ ] Add verified boarding/alighting stops and road names along route segments;
+      distinguish designated bus stops from inferred jeepney road access.
 
 ## General
 - [ ] Investigate bounding the map to Davao City's boundaries, including how
