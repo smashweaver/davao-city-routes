@@ -1,2 +1,4 @@
 commit.diff
 commit.draft
+.playwright-cli/
+.opencode/

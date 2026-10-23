@@ -6,6 +6,8 @@ planning a commute, and animating a jeepney along the chosen road path.
 The app ships five verified routes, a simple trip planner, and a map with an
 animated jeepney marker.
 
+**Live demo:** <https://smashweaver.github.io/davao-city-routes/>
+
 ## Features
 
 - **Route map** — all routes drawn as colored polylines on an OpenStreetMap base map.
@@ -77,7 +79,8 @@ Google Places API usage is billed by Google. Nominatim is free but subject to it
 DavaoRoutes/
 ├── index.html   # entire application (UI, data, planner, map, animation)
 ├── run.sh       # threaded local static server (default port 8000)
-└── README.md
+├── README.md
+└── AGENTS.md    # notes for coding agents
 ```
 
 ## Routes in the dataset
