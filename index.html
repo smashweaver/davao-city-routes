@@ -3,113 +3,263 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#153b35" />
   <title>Davao City Jeepney Route Finder</title>
 
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Leaflet CSS & JS -->
+  <!-- Leaflet is the only external UI dependency. App styling is self-contained. -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
+    :root {
+      color-scheme: light;
+      --ink: #183b35;
+      --muted: #69776e;
+      --paper: #f5f3eb;
+      --line: #dedfd4;
+      --sun: #f6c84a;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+      font-synthesis: none;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; height: 100vh; height: 100dvh; overflow: hidden; }
+    h1, h2, p, ol { margin: 0; }
+    button, input { font: inherit; }
+    button, a, input { -webkit-tap-highlight-color: transparent; }
+    button { cursor: pointer; }
+    button:disabled { cursor: wait; }
+    button, input { border: 1px solid transparent; }
+    button { transition: background .18s, border-color .18s, box-shadow .18s, transform .18s; }
+    button:focus-visible, a:focus-visible, summary:focus-visible, [role="button"]:focus-visible {
+      outline: 3px solid #bc8500; outline-offset: 3px;
+    }
+    input:focus-visible { outline: 2px solid #bc8500; outline-offset: 1px; }
+    a { color: #21645b; text-underline-offset: 3px; }
+    a:hover { color: #a1640b; }
+    .app-shell { display: grid; grid-template-columns: 400px minmax(0, 1fr); height: 100%; }
+    .sidebar { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid #c7d0c3; z-index: 2; box-shadow: 8px 0 30px #183b350c; }
+    .brand-header { padding: 24px 24px 22px; color: #fff9e9; background: var(--ink); position: relative; overflow: hidden; flex-shrink: 0; }
+    .brand-header::after { content: ""; position: absolute; right: -28px; top: -78px; width: 168px; height: 168px; border: 1px solid #ffffff13; border-radius: 50%; box-shadow: 0 0 0 22px #ffffff06, 0 0 0 44px #ffffff04; pointer-events: none; }
+    .brand-topline, .brand-row, .controls-heading, .playback-row, .playback-options, .card-heading, .place-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .brand-topline { margin-bottom: 18px; position: relative; z-index: 1; }
+    .eyebrow { font-size: 10px; font-weight: 750; letter-spacing: .19em; text-transform: uppercase; }
+    .brand-topline .eyebrow { color: #b7c9b5; }
+    .city-stamp { font-size: 9px; letter-spacing: .12em; border: 1px solid #ffffff30; padding: 5px 8px; border-radius: 5px; }
+    .brand-row { position: relative; z-index: 1; }
+    .brand-title { font-family: Georgia, "Times New Roman", serif; font-size: 36px; font-weight: 400; line-height: 1; letter-spacing: -1.8px; }
+    .brand-title span { color: var(--sun); }
+    .brand-description { color: #bed0bf; font-size: 11px; margin-top: 9px; }
+    .locate-button { max-width: 145px; min-height: 38px; flex-shrink: 0; border-color: #f6c84a70; border-radius: 9px; background: #f6c84a12; color: #ffe6a0; padding: 8px 10px; font-size: 11px; font-weight: 700; }
+    .locate-button:hover { background: #f6c84a26; border-color: var(--sun); }
+    .is-locating { opacity: .65; }
+    .search-panel { padding: 23px 24px 15px; border-bottom: 1px solid var(--line); flex-shrink: 0; background: #fbfaf5; }
+    .search-title { display: block; font-size: 21px; font-weight: 750; letter-spacing: -.7px; margin-bottom: 13px; }
+    .search-row { display: flex; gap: 8px; }
+    .search-input, .settings-input { min-width: 0; width: 100%; border-color: #d2d8cd; background: white; color: var(--ink); border-radius: 9px; }
+    .search-input { font-size: 12px; padding: 12px 11px; }
+    input::placeholder { color: #819085; opacity: 1; }
+    .search-button { padding: 0 16px; border-radius: 9px; background: var(--ink); color: white; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .search-button:hover { background: #2b5b4a; }
+    .preset-list { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 11px; }
+    .preset-label { font-size: 10px; color: var(--muted); margin-right: 2px; }
+    .preset-tag { font-size: 10px; padding: 4px 8px; border-color: #dfe3d7; border-radius: 100px; color: #516456; background: #f3f4eb; }
+    .preset-tag:hover { border-color: #839d80; background: #e6ebdc; }
+    .search-hint { font-size: 10px; line-height: 1.5; color: var(--muted); margin-top: 10px; }
+    .search-settings { margin-top: 9px; }
+    .search-settings summary { cursor: pointer; width: fit-content; font-size: 10px; color: #65766a; }
+    .settings-row { display: flex; gap: 6px; margin-top: 8px; }
+    .settings-input { font-size: 11px; padding: 8px; }
+    .settings-save, .walk-mode-button { padding: 5px 9px; border-radius: 6px; border-color: #ced8c7; background: #e7ecdf; color: var(--ink); font-size: 10px; font-weight: 650; }
+    .settings-save:hover, .walk-mode-button:hover { background: #d9e4cf; }
+    .settings-status { font-size: 10px; color: var(--muted); line-height: 1.5; margin-top: 6px; }
+    .routes-heading { display: flex; justify-content: space-between; align-items: center; padding: 17px 24px 10px; flex-shrink: 0; }
+    .routes-heading h2 { font-size: 10px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
+    .route-count { font-size: 10px; color: var(--muted); }
+    .route-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px 18px; scrollbar-width: thin; scrollbar-color: #bbc7b5 transparent; }
+    .route-list > * + * { margin-top: 10px; }
+    .assistant-card { border: 1px solid #ddcd9a; border-radius: 11px; background: #faf2d9; padding: 13px 14px; color: #665325; font-size: 11px; line-height: 1.65; }
+    .assistant-label { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; color: #75602c; font-size: 9px; letter-spacing: .13em; font-weight: 750; text-transform: uppercase; }
+    .assistant-label::before { content: ""; width: 6px; height: 6px; background: #bc9036; border-radius: 50%; }
+    .route-card { position: relative; padding: 15px 14px 13px 17px; background: #fffefa; border: 1px solid #dfe3d7; border-radius: 11px; cursor: pointer; overflow: hidden; transition: background .18s, border-color .18s, box-shadow .18s; }
+    .route-card::before { content: ""; position: absolute; left: 0; top: 15px; bottom: 15px; width: 3px; border-radius: 0 4px 4px 0; background: var(--route-color); }
+    .route-card:hover { border-color: #9aaa92; box-shadow: 0 3px 14px #183b3509; }
+    .route-card.is-selected { background: #edf1e5; border-color: #6f8a65; box-shadow: 0 0 0 1px #6f8a6515; }
+    .card-heading { align-items: flex-start; gap: 8px; margin-bottom: 7px; }
+    .route-name { font-size: 13px; font-weight: 750; line-height: 1.35; letter-spacing: -.15px; }
+    .route-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--route-color); margin-right: 5px; }
+    .fare-badge { display: inline-block; flex-shrink: 0; font-size: 10px; font-variant-numeric: tabular-nums; color: #556349; background: #e9eddf; padding: 3px 6px; border-radius: 5px; white-space: nowrap; }
+    .route-description { color: var(--muted); font-size: 11px; line-height: 1.6; }
+    .clamp-two { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+    .stop-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+    .stop-tag { padding: 3px 6px; border-radius: 4px; background: #f0f2e9; color: #687861; font-size: 9px; }
+    .is-selected .stop-tag { background: #e1e8d6; }
+    .place-card { width: 100%; text-align: left; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: #fffefa; color: var(--ink); }
+    .place-card:hover { border-color: #91a382; background: #edf1e5; }
+    .place-heading { align-items: flex-start; }
+    .place-name { font-size: 13px; font-weight: 700; }
+    .place-address { margin-top: 4px; font-size: 11px; color: var(--muted); line-height: 1.5; }
+    .place-source { flex-shrink: 0; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .place-coverage { margin-top: 9px; font-size: 10px; }
+    .coverage-outside { color: #a74246; }
+    .coverage-near { color: #326b48; }
+    .search-more-link { display: block; text-align: center; font-size: 11px; padding-top: 5px; }
+    .trip-title { font-weight: 750; font-size: 14px; color: #235c47; }
+    .trip-legs { list-style: none; padding: 0; margin-top: 12px; }
+    .trip-leg { display: flex; gap: 9px; padding: 7px 0; line-height: 1.6; }
+    .trip-route-name { color: var(--ink); border-left: 3px solid var(--route-color); padding-left: 6px; }
+    .trip-leg + .trip-leg { border-top: 1px dashed #dbcfac; }
+    .trip-stops, .trip-summary, .walk-mode-detail { color: #69745f; }
+    .trip-summary { margin-top: 9px; font-size: 10px; }
+    .trip-link { display: inline-block; margin-top: 10px; font-size: 11px; }
+    .walk-mode-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 10px; font-size: 10px; }
+    .section-caption { padding: 9px 2px 1px; font-size: 10px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .13em; }
+    .animation-panel { padding: 15px 23px 17px; flex-shrink: 0; color: #f9f5e7; background: var(--ink); border-top: 3px solid var(--sun); }
+    .controls-heading { font-size: 11px; margin-bottom: 11px; }
+    .active-route-label { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .speed-label { flex-shrink: 0; color: #b9cdb7; font-size: 10px; }
+    .playback-row { gap: 13px; }
+    .play-button { min-width: 72px; height: 36px; border-radius: 7px; background: var(--sun); color: #193a30; font-size: 11px; font-weight: 800; }
+    .play-button:hover { background: #ffdb71; transform: translateY(-1px); }
+    .play-button.is-playing { background: #e3edcb; }
+    .progress-slider { flex: 1; min-width: 0; width: 100%; accent-color: var(--sun); cursor: pointer; }
+    .playback-options { margin-top: 10px; font-size: 10px; color: #c0d0ba; }
+    .follow-label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .follow-label input { margin: 0; accent-color: var(--sun); }
+    .speed-controls { display: flex; gap: 4px; }
+    .speed-btn { padding: 4px 7px; background: transparent; color: #bdd0b5; border-radius: 5px; font-size: 10px; }
+    .speed-btn:hover { background: #ffffff12; }
+    .speed-btn.is-active { background: #ffffff19; color: #fff6d5; }
+    .map-panel { position: relative; min-height: 0; min-width: 0; overflow: hidden; background: #e2e9d9; }
     #map { height: 100%; width: 100%; z-index: 1; }
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    .map-title { position: absolute; z-index: 400; left: 28px; top: 26px; padding: 16px 19px; border: 1px solid #ffffffb5; border-radius: 12px; background: #fffdf3ed; box-shadow: 0 5px 25px #173b3520; pointer-events: none; }
+    .map-title .eyebrow { color: #708365; font-size: 9px; letter-spacing: .16em; }
+    .map-title p { margin-top: 6px; font-family: Georgia, "Times New Roman", serif; font-size: 27px; letter-spacing: -.8px; }
+    .map-key { position: absolute; z-index: 400; bottom: 25px; left: 28px; display: flex; align-items: center; gap: 15px; border: 1px solid #ffffffb5; border-radius: 8px; padding: 9px 12px; background: #fffdf3ef; color: #52654b; font-size: 10px; pointer-events: none; box-shadow: 0 3px 12px #173b3512; }
+    .map-key span { display: flex; align-items: center; gap: 6px; }
+    .key-line { display: inline-block; width: 17px; border-top: 3px solid #d99922; border-radius: 2px; }
+    .key-walk { border-top: 2px dashed #94a3b8; }
+    .jeep-icon { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 2px solid white; border-radius: 50%; box-shadow: 0 3px 10px #153b3540; font-size: 14px; }
+    .leaflet-control-zoom { border: 1px solid #d2dacb !important; border-radius: 9px !important; overflow: hidden; box-shadow: 0 3px 14px #153b3520 !important; }
+    .leaflet-control-zoom a { color: var(--ink) !important; background: #fffdf6 !important; }
+    .leaflet-container { font-family: inherit; }
+    .leaflet-popup-content-wrapper { border-radius: 10px; color: var(--ink); }
+    @media (min-width: 1400px) { .app-shell { grid-template-columns: 420px minmax(0, 1fr); } }
+    @media (max-height: 800px) and (min-width: 768px) {
+      .brand-header { padding: 17px 22px; } .brand-topline { margin-bottom: 11px; }
+      .brand-title { font-size: 30px; } .search-panel { padding: 16px 22px 12px; }
+      .search-title { font-size: 19px; margin-bottom: 10px; }
+      .animation-panel { padding: 12px 22px; }
+    }
+    @media (max-width: 767px) {
+      .app-shell { display: flex; flex-direction: column; }
+      .map-panel { order: 0; flex: 0 0 37%; min-height: 170px; }
+      .sidebar { order: 1; flex: 1; border-right: none; border-top: 1px solid #c7d0c3; }
+      .brand-header { padding: 12px 17px; }
+      .brand-topline, .brand-description { display: none; }
+      .brand-title { font-size: 27px; letter-spacing: -1px; }
+      .locate-button { max-width: 150px; min-height: 33px; font-size: 10px; padding: 7px 9px; }
+      .search-panel { padding: 12px 17px 10px; }
+      .search-title { font-size: 17px; margin-bottom: 9px; }
+      .search-input { font-size: 12px; padding: 10px; }
+      .preset-list { margin-top: 8px; }
+      .search-hint { display: none; }
+      .search-settings { margin-top: 7px; }
+      .routes-heading { padding: 10px 17px 8px; }
+      .route-list { padding: 0 10px 12px; }
+      .route-card { padding: 12px 12px 11px 15px; }
+      .assistant-card { padding: 10px 12px; }
+      .assistant-label { display: none; }
+      .animation-panel { padding: 10px 17px; }
+      .controls-heading { margin-bottom: 7px; }
+      .play-button { height: 30px; min-width: 66px; }
+      .playback-options { margin-top: 7px; }
+      .speed-btn { min-height: 28px; padding: 4px 8px; }
+      .map-title { top: 14px; left: 14px; padding: 10px 13px; border-radius: 9px; }
+      .map-title p { font-size: 22px; margin-top: 3px; }
+      .map-key { bottom: 16px; left: 14px; padding: 7px 9px; gap: 10px; font-size: 9px; }
+    }
+    @media (max-width: 767px) and (min-height: 601px) and (max-height: 740px) {
+      .map-panel { flex-basis: 29%; }
+    }
+    @media (max-width: 767px) {
+      .app-shell:has(.search-settings[open]) .map-panel { flex-basis: 24%; min-height: 150px; }
+    }
+    @media (min-width: 768px) and (max-height: 600px) {
+      .sidebar { overflow-y: auto; }
+      .route-list { flex: 1 0 170px; }
+    }
+    @media (max-width: 767px) and (max-height: 600px) {
+      body { overflow: auto; height: auto; min-height: 100dvh; }
+      .app-shell { height: auto; }
+      .map-panel { flex: none; height: 45dvh; min-height: 190px; }
+      .sidebar { flex: none; height: 590px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; } }
   </style>
 </head>
-<body class="bg-slate-900 text-slate-100 h-screen w-screen overflow-hidden font-sans">
-
-  <div class="flex flex-col md:flex-row h-full w-full">
-
-    <!-- Sidebar / Panel -->
-    <div class="w-full md:w-96 bg-slate-800 flex flex-col z-10 shadow-xl border-r border-slate-700 h-2/5 md:h-full">
-
-      <!-- Header -->
-      <div class="p-4 bg-slate-900 border-b border-slate-700 flex items-center justify-between">
-        <div>
-          <h1 class="text-xl font-bold text-amber-400 flex items-center gap-2">
-            <span>🚌</span> Davao Jeep Routes
-          </h1>
-          <p class="text-xs text-slate-400">Interactive PUJ Commute & Route Simulator</p>
+<body>
+  <main class="app-shell">
+    <aside class="sidebar" aria-label="Jeepney route planner">
+      <header class="brand-header">
+        <div class="brand-topline"><span class="eyebrow">Davao City · Philippines</span><span class="city-stamp">LOCAL ROUTE GUIDE</span></div>
+        <div class="brand-row">
+          <div><h1 class="brand-title">Jeep routes<span>.</span></h1><p class="brand-description">A little local knowledge. A better way around.</p></div>
+          <button id="locate-btn" class="locate-button" type="button">⌖ My Location</button>
         </div>
-        <button id="locate-btn" class="bg-amber-500 hover:bg-amber-600 text-slate-950 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition">
-          📍 My Location
-        </button>
-      </div>
+      </header>
 
-      <!-- Chat / Search Interface -->
-      <div class="p-4 bg-slate-800/80 border-b border-slate-700">
-        <label class="block text-xs font-medium text-slate-300 mb-1">Where do you want to go?</label>
-        <div class="flex gap-2">
-          <input type="text" id="chat-input" placeholder="e.g. Abreeza, or from Matina to Abreeza"
-                 class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400">
-          <button id="search-btn" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 rounded-lg text-sm transition">
-            Go
-          </button>
+      <section class="search-panel" aria-label="Plan a commute">
+        <label class="search-title" for="chat-input">Where are we headed?</label>
+        <div class="search-row">
+          <input type="text" id="chat-input" class="search-input" placeholder="A place, or from Matina to Abreeza" autocomplete="off" />
+          <button id="search-btn" class="search-button" type="button">Find route ↗</button>
         </div>
-        <!-- Quick Preset Tags -->
-        <div class="flex flex-wrap gap-1.5 mt-2">
-          <span class="text-[10px] text-slate-400">Try:</span>
-          <button class="preset-tag text-[10px] bg-slate-700 hover:bg-amber-500 hover:text-slate-950 px-2 py-0.5 rounded text-slate-300 transition" data-query="Abreeza">Abreeza</button>
-          <button class="preset-tag text-[10px] bg-slate-700 hover:bg-amber-500 hover:text-slate-950 px-2 py-0.5 rounded text-slate-300 transition" data-query="SM Lanang">SM Lanang</button>
-          <button class="preset-tag text-[10px] bg-slate-700 hover:bg-amber-500 hover:text-slate-950 px-2 py-0.5 rounded text-slate-300 transition" data-query="Roxas Night Market">Roxas Market</button>
-          <button class="preset-tag text-[10px] bg-slate-700 hover:bg-amber-500 hover:text-slate-950 px-2 py-0.5 rounded text-slate-300 transition" data-query="Toril">Toril</button>
+        <div class="preset-list">
+          <span class="preset-label">Try</span>
+          <button class="preset-tag" data-query="Abreeza" type="button">Abreeza</button>
+          <button class="preset-tag" data-query="SM Lanang" type="button">SM Lanang</button>
+          <button class="preset-tag" data-query="Roxas Night Market" type="button">Roxas Market</button>
+          <button class="preset-tag" data-query="Toril" type="button">Toril</button>
         </div>
-        <p class="text-[10px] text-slate-500 mt-2">Set your location with My Location, or type "from Matina to Abreeza".</p>
-        <details class="mt-2">
-          <summary class="text-[10px] text-slate-500 cursor-pointer select-none">Search settings</summary>
-          <div class="mt-2 flex gap-1.5">
-            <input id="gmaps-key" type="password" autocomplete="off" spellcheck="false"
-                   placeholder="Google Places API key (optional)"
-                   class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400">
-            <button id="save-gmaps-key" class="bg-slate-700 hover:bg-slate-600 text-slate-100 px-2 rounded text-[10px] font-semibold">Save</button>
+        <p class="search-hint">Use My Location, or add your starting point with “from”.</p>
+        <details class="search-settings">
+          <summary>Search settings</summary>
+          <div class="settings-row">
+            <input id="gmaps-key" type="password" class="settings-input" autocomplete="off" spellcheck="false" placeholder="Google Places API key (optional)" aria-label="Google Places API key" />
+            <button id="save-gmaps-key" class="settings-save" type="button">Save</button>
           </div>
-          <p id="gmaps-key-status" class="text-[9px] text-slate-500 mt-1">Without a key, place lookup uses OpenStreetMap. The key is stored only in this browser.</p>
+          <p id="gmaps-key-status" class="settings-status">Without a key, place lookup uses OpenStreetMap. The key is stored only in this browser.</p>
         </details>
-      </div>
+      </section>
 
-      <!-- Route Selector / Chat Output -->
-      <div class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3" id="route-list">
-        <!-- Dynamic content injected here -->
-      </div>
+      <div class="routes-heading"><h2>Explore the routes</h2><span class="route-count"><span id="route-count">5</span> mapped routes</span></div>
+      <section class="route-list" id="route-list" aria-label="Routes and trip results"></section>
 
-      <!-- Animation Controls -->
-      <div class="p-4 bg-slate-900 border-t border-slate-700 space-y-2">
-        <div class="flex items-center justify-between text-xs text-slate-300">
-          <span id="active-route-name" class="font-semibold text-amber-400">Select a Route</span>
-          <span id="anim-speed-label" class="text-slate-400">Speed: 1x</span>
+      <footer class="animation-panel" aria-label="Route animation controls">
+        <div class="controls-heading"><span id="active-route-name" class="active-route-label">Select a route</span><span id="anim-speed-label" class="speed-label">Speed: 1x</span></div>
+        <div class="playback-row">
+          <button id="play-btn" class="play-button" type="button">▶ Play</button>
+          <input type="range" id="progress-bar" class="progress-slider" min="0" max="100" value="0" aria-label="Jeepney position along route" />
         </div>
-
-        <div class="flex items-center gap-2">
-          <button id="play-btn" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 px-3 py-1.5 rounded text-xs font-bold transition min-w-[60px]">
-            ▶ Play
-          </button>
-          <input type="range" id="progress-bar" min="0" max="100" value="0" class="w-full accent-amber-400 cursor-pointer">
-        </div>
-
-        <div class="flex justify-between items-center text-xs">
-          <label class="flex items-center gap-1.5 text-slate-400 cursor-pointer">
-            <input type="checkbox" id="follow-cam" checked class="rounded accent-amber-400"> Follow Camera
-          </label>
-          <div class="flex gap-1">
-            <button class="speed-btn px-2 py-0.5 bg-slate-800 text-slate-300 rounded text-[10px] hover:bg-slate-700" data-speed="1">1x</button>
-            <button class="speed-btn px-2 py-0.5 bg-slate-800 text-slate-300 rounded text-[10px] hover:bg-slate-700" data-speed="2">2x</button>
-            <button class="speed-btn px-2 py-0.5 bg-slate-800 text-slate-300 rounded text-[10px] hover:bg-slate-700" data-speed="5">5x</button>
+        <div class="playback-options">
+          <label class="follow-label"><input type="checkbox" id="follow-cam" checked /> Follow jeepney</label>
+          <div class="speed-controls" role="group" aria-label="Animation speed">
+            <button class="speed-btn is-active" data-speed="1" type="button" aria-pressed="true">1×</button>
+            <button class="speed-btn" data-speed="2" type="button" aria-pressed="false">2×</button>
+            <button class="speed-btn" data-speed="5" type="button" aria-pressed="false">5×</button>
           </div>
         </div>
-      </div>
+      </footer>
+    </aside>
 
-    </div>
-
-    <!-- Map Container -->
-    <div class="flex-1 h-3/5 md:h-full relative">
+    <section class="map-panel" aria-label="Davao City route map">
       <div id="map"></div>
-    </div>
-
-  </div>
+      <div class="map-title"><span class="eyebrow">Your way around Davao</span><p>The city, connected.</p></div>
+      <div class="map-key" aria-label="Map legend"><span><i class="key-line"></i>Jeepney routes</span><span><i class="key-line key-walk"></i>Walking links</span></div>
+    </section>
+  </main>
 
   <script>
     // --- DAVAO JEEPNEY ROUTES DATASET ---
@@ -3285,7 +3435,7 @@
 
     function createJeepIcon(color) {
       return L.divIcon({
-        html: `<div style="background-color: ${color};" class="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-sm shadow-lg">🚌</div>`,
+        html: `<div style="background-color: ${color};" class="jeep-icon">🚌</div>`,
         className: '',
         iconSize: [32, 32],
         iconAnchor: [16, 16]
@@ -3539,10 +3689,10 @@
 
     function describeCoverage(place) {
       const stops = nearestStops(place, MAX_ACCESS_WALK);
-      if (!stops.length) return { text: 'Outside the mapped route area', className: 'text-rose-300' };
+      if (!stops.length) return { text: 'Outside the mapped route area', className: 'coverage-outside' };
       return {
         text: `Near ${landmarks[stops[0].key].name} · ${formatDistance(stops[0].distance)} walk`,
-        className: 'text-emerald-300'
+        className: 'coverage-near'
       };
     }
 
@@ -3556,16 +3706,16 @@
         const coverage = describeCoverage(place);
         const card = document.createElement('button');
         card.type = 'button';
-        card.className = 'w-full text-left p-3 rounded-lg border border-slate-700 bg-slate-900/60 hover:border-amber-400 hover:bg-slate-800/60 transition';
+        card.className = 'place-card';
         card.innerHTML = `
-          <div class="flex items-start justify-between gap-2">
+          <div class="place-heading">
             <div>
-              <div class="text-sm font-semibold text-slate-100">${escapeHtml(place.name)}</div>
-              <div class="text-[11px] text-slate-400 mt-0.5 line-clamp-2">${escapeHtml(place.address || 'No address returned')}</div>
+              <div class="place-name">${escapeHtml(place.name)}</div>
+              <div class="place-address clamp-two">${escapeHtml(place.address || 'No address returned')}</div>
             </div>
-            <span class="text-[9px] uppercase tracking-wide text-slate-500 shrink-0">${escapeHtml(place.source)}</span>
+            <span class="place-source">${escapeHtml(place.source)}</span>
           </div>
-          <div class="text-[10px] ${coverage.className} mt-2">${escapeHtml(coverage.text)}</div>
+          <div class="place-coverage ${coverage.className}">${escapeHtml(coverage.text)}</div>
         `;
         card.onclick = () => selectGeocodedPlace(place, role, parsed);
         container.appendChild(card);
@@ -3575,7 +3725,7 @@
       link.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query + ' Davao City')}`;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
-      link.className = 'block text-center text-[10px] text-sky-300 hover:text-sky-200 underline pt-1';
+      link.className = 'search-more-link';
       link.textContent = 'Open this search in Google Maps';
       container.appendChild(link);
     }
@@ -3587,7 +3737,7 @@
       if (sequence !== geocodeSequence) return;
       if (!results.length) {
         const link = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query + ' Davao City')}`;
-        renderRouteList(davaoRoutes, `I couldn't find <b>${escapeHtml(query)}</b> nearby. Try a more specific name, or <a class="text-sky-300 underline" href="${link}" target="_blank" rel="noopener noreferrer">search it on Google Maps</a>.`);
+        renderRouteList(davaoRoutes, `I couldn't find <b>${escapeHtml(query)}</b> nearby. Try a more specific name, or <a class="text-link" href="${link}" target="_blank" rel="noopener noreferrer">search it on Google Maps</a>.`);
         return;
       }
       renderGeocodeCandidates(query, results, role, parsed);
@@ -3918,8 +4068,8 @@
     // --- UI RENDER ---
     function chatBox(html) {
       const box = document.createElement('div');
-      box.className = "p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-200";
-      box.innerHTML = `<div class="flex gap-2"><span>🤖</span><div><b>Commute Assistant:</b><div class="mt-1 leading-relaxed">${html}</div></div></div>`;
+      box.className = 'assistant-card';
+      box.innerHTML = `<div class="assistant-label">Commute companion</div><div>${html}</div>`;
       return box;
     }
 
@@ -3927,29 +4077,30 @@
       const highlighted = selectedIds || (activeRoute ? [activeRoute.id] : []);
       const isSelected = highlighted.includes(route.id);
       const card = document.createElement('div');
-      card.className = `p-3 rounded-lg border transition cursor-pointer ${
-        isSelected
-          ? 'bg-slate-700/80 border-amber-400 text-white'
-          : 'bg-slate-900/60 border-slate-700 hover:border-slate-500 text-slate-300'
-      }`;
+      card.className = `route-card${isSelected ? ' is-selected' : ''}`;
+      card.style.setProperty('--route-color', route.color);
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('aria-pressed', String(isSelected));
+      card.setAttribute('aria-label', route.name);
 
       const stopNames = route.landmarks.slice(0, 4).map(key => landmarks[key] ? landmarks[key].name : key);
-
       card.innerHTML = `
-        <div class="flex items-center justify-between mb-1">
-          <span class="font-bold text-sm flex items-center gap-2" style="color: ${route.color}">
-            <span class="inline-block w-3 h-3 rounded-full" style="background-color: ${route.color}"></span>
-            ${route.name}
-          </span>
-          <span class="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-mono">${route.fare}</span>
+        <div class="card-heading">
+          <span class="route-name"><span class="route-dot" aria-hidden="true"></span>${route.name}</span>
+          <span class="fare-badge">${route.fare}</span>
         </div>
-        <p class="text-xs text-slate-400 line-clamp-2">${route.description}</p>
-        <div class="mt-2 flex flex-wrap gap-1">
-          ${stopNames.map(l => `<span class="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">${l}</span>`).join('')}
-        </div>
+        <p class="route-description clamp-two">${route.description}</p>
+        <div class="stop-list">${stopNames.map(name => `<span class="stop-tag">${name}</span>`).join('')}</div>
       `;
-
       card.onclick = () => selectRoute(route);
+      card.onkeydown = event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          selectRoute(route);
+          document.querySelector(`.route-card[aria-label="${CSS.escape(route.name)}"]`)?.focus();
+        }
+      };
       return card;
     }
 
@@ -3967,11 +4118,11 @@
 
       const legsHtml = trip.legs.map(leg => {
         if (leg.type === 'walk') {
-          return `<li class="flex gap-2"><span>🚶</span><div>Walk <b>${formatDistance(leg.distance)}</b> to <b>${escapeHtml(leg.to.label)}</b></div></li>`;
+          return `<li class="trip-leg"><span>🚶</span><div>Walk <b>${formatDistance(leg.distance)}</b> to <b>${escapeHtml(leg.to.label)}</b></div></li>`;
         }
         const fromName = landmarks[leg.fromStop].name;
         const toName = landmarks[leg.toStop].name;
-        return `<li class="flex gap-2"><span>🚌</span><div><b style="color:${leg.route.color}">${leg.route.name}</b><br><span class="text-slate-400">${fromName} → ${toName}</span> <span class="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 font-mono">${leg.route.fare}</span></div></li>`;
+        return `<li class="trip-leg"><span>🚌</span><div><b class="trip-route-name" style="--route-color:${leg.route.color}">${leg.route.name}</b><br><span class="trip-stops">${fromName} → ${toName}</span> <span class="fare-badge">${leg.route.fare}</span></div></li>`;
       }).join('');
 
       const rides = trip.legs.filter(leg => leg.type === 'ride');
@@ -3981,14 +4132,14 @@
 
       const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${trip.origin.lat},${trip.origin.lng}&destination=${trip.destination.lat},${trip.destination.lng}&travelmode=walking`;
       const box = chatBox(`
-        <div class="font-semibold text-emerald-300">Trip to ${escapeHtml(trip.destination.label)}</div>
-        <ol class="mt-2 space-y-2">${legsHtml}</ol>
-        <div class="mt-2 text-[10px] text-slate-400">${summary} · dashed walks follow roads (OSRM) when available</div>
-        <div class="mt-2"><a class="text-sky-300 underline text-xs" href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Walking directions on Google Maps ↗</a></div>
-        <div class="mt-2 flex items-center gap-2 text-[10px] text-slate-400">
+        <div class="trip-title">Trip to ${escapeHtml(trip.destination.label)}</div>
+        <ol class="trip-legs">${legsHtml}</ol>
+        <div class="trip-summary">${summary} · dashed walks follow roads (OSRM) when available</div>
+        <div><a class="trip-link" href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Walking directions on Google Maps ↗</a></div>
+        <div class="walk-mode-row">
           <span>Walk display:</span>
-          <button id="walk-mode-btn" class="px-2 py-0.5 rounded bg-slate-800 text-slate-200 hover:bg-slate-700">${walkMode === 'roads' ? 'Roads' : 'Straight'}</button>
-          <span class="text-slate-500">${walkMode === 'roads' ? 'OSRM road-following (may detour)' : 'straight-line connectors'}</span>
+          <button id="walk-mode-btn" class="walk-mode-button">${walkMode === 'roads' ? 'Roads' : 'Straight'}</button>
+          <span class="walk-mode-detail">${walkMode === 'roads' ? 'OSRM road-following (may detour)' : 'straight-line connectors'}</span>
         </div>
       `);
       container.appendChild(box);
@@ -4000,7 +4151,7 @@
       };
 
       const heading = document.createElement('div');
-      heading.className = 'text-[10px] uppercase tracking-wide text-slate-500 pt-1';
+      heading.className = 'section-caption';
       heading.textContent = 'All routes';
       container.appendChild(heading);
 
@@ -4010,7 +4161,9 @@
 
     // --- MAP DISPLAY ---
     function initMap() {
-      map = L.map('map').setView([7.0736, 125.6110], 13);
+      map = L.map('map', { zoomControl: false }).setView([7.0736, 125.6110], 13);
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+      document.getElementById('route-count').textContent = davaoRoutes.length;
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
@@ -4042,7 +4195,7 @@
 
       tripLayer = L.layerGroup().addTo(map);
       selectRoute(davaoRoutes[0]);
-      renderRouteList(davaoRoutes, 'Tap <b>My Location</b> and tell me where you\'re going. You can also type <b>from Matina to Abreeza</b>.');
+      renderRouteList(davaoRoutes, '<b>Choose a route</b>, or tell me where you\'re going.');
     }
 
     function clearTripDisplay() {
@@ -4060,7 +4213,7 @@
 
       const btn = document.getElementById('play-btn');
       btn.innerText = '\u25b6 Play';
-      btn.className = 'bg-emerald-500 hover:bg-emerald-600 text-slate-950 px-3 py-1.5 rounded text-xs font-bold transition min-w-[60px]';
+      btn.className = 'play-button';
 
       if (jeepMarker) {
         map.removeLayer(jeepMarker);
@@ -4102,7 +4255,7 @@
         cancelAnimationFrame(animFrameId);
         const btn = document.getElementById('play-btn');
         btn.innerText = '▶ Play';
-        btn.className = 'bg-emerald-500 hover:bg-emerald-600 text-slate-950 px-3 py-1.5 rounded text-xs font-bold transition min-w-[60px]';
+        btn.className = 'play-button';
       }
 
       if (tripLayer) tripLayer.clearLayers();
@@ -4212,8 +4365,8 @@
     function restoreLocateButton() {
       const btn = document.getElementById('locate-btn');
       btn.disabled = false;
-      btn.classList.remove('opacity-60');
-      btn.innerHTML = '📍 My Location';
+      btn.classList.remove('is-locating');
+      btn.textContent = '⌖ My Location';
     }
 
     function applyUserLocation(lat, lng, destination, accuracy = null) {
@@ -4236,7 +4389,7 @@
       pendingDestination = destination;
       const btn = document.getElementById('locate-btn');
       btn.disabled = true;
-      btn.classList.add('opacity-60');
+      btn.classList.add('is-locating');
       btn.textContent = '🖱️ Tap your spot on the map';
       renderRouteList(davaoRoutes, message);
     }
@@ -4254,7 +4407,7 @@
       pendingDestination = destination;
       const btn = document.getElementById('locate-btn');
       btn.disabled = true;
-      btn.classList.add('opacity-60');
+      btn.classList.add('is-locating');
       btn.textContent = '⏳ Locating…';
 
       let receivedCoarseFix = false;
@@ -4363,12 +4516,12 @@
       const btn = document.getElementById('play-btn');
       if (isPlaying && activeRoute) {
         btn.innerText = '\u23f8 Pause';
-        btn.className = 'bg-amber-500 hover:bg-amber-600 text-slate-950 px-3 py-1.5 rounded text-xs font-bold transition min-w-[60px]';
+        btn.className = 'play-button is-playing';
         animate();
       } else {
         isPlaying = false;
         btn.innerText = '\u25b6 Play';
-        btn.className = 'bg-emerald-500 hover:bg-emerald-600 text-slate-950 px-3 py-1.5 rounded text-xs font-bold transition min-w-[60px]';
+        btn.className = 'play-button';
         cancelAnimationFrame(animFrameId);
       }
     };
@@ -4387,6 +4540,11 @@
         const speedMultiplier = parseFloat(btn.dataset.speed);
         animSpeed = 0.0008 * speedMultiplier;
         document.getElementById('anim-speed-label').innerText = `Speed: ${speedMultiplier}x`;
+        document.querySelectorAll('.speed-btn').forEach(option => {
+          const selected = option === btn;
+          option.classList.toggle('is-active', selected);
+          option.setAttribute('aria-pressed', String(selected));
+        });
       };
     });
 

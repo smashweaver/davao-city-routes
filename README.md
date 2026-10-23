@@ -26,13 +26,14 @@ animated jeepney marker.
 - **Geolocation** — "My Location" watches for a fix with reported accuracy of
   500 m or better, stops after accepting it, and offers a manual fallback if
   location is unavailable or remains too broad for 12 seconds.
-- **Responsive layout** — sidebar panel + map, usable on desktop and mobile.
+- **Responsive layout** — a paper-and-green route guide beside the map on desktop;
+  a map above the planner on mobile. Styling lives in the HTML, with no CSS framework.
 
 ## Tech stack
 
 | Layer | Choice |
 | --- | --- |
-| Markup/styling | HTML + [Tailwind CSS](https://tailwindcss.com/) via CDN |
+| Markup/styling | Semantic HTML + self-contained native CSS in `index.html` |
 | Mapping | [Leaflet](https://leafletjs.com/) 1.9.4 (unpkg CDN) |
 | Tile layer | OpenStreetMap standard tiles |
 | App logic | Vanilla JavaScript (no framework, no bundler) |
@@ -42,8 +43,8 @@ animated jeepney marker.
 | Browser APIs | Geolocation, `requestAnimationFrame`, DOM, `fetch`, `localStorage` |
 
 There is **no build step and no package manifest**. The app is one HTML file plus
-a small server helper. Internet access is required for the Tailwind CDN, Leaflet
-CDN, and OSM map tiles.
+a small server helper. Internet access is required for the Leaflet CDN and OSM
+map tiles; application styling does not require a network request.
 
 ## Getting started
 
@@ -223,5 +224,4 @@ Last verified: **October 24, 2026** (location checks; earlier route checks on Oc
 ## Attribution
 
 Map data © OpenStreetMap contributors. Leaflet is distributed under the BSD-2-Clause
-license. Tailwind CSS is delivered via its CDN. No license file is included for
-this project; add one if you plan to redistribute.
+license. No license file is included for this project; add one if you plan to redistribute.

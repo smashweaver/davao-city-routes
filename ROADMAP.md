@@ -55,8 +55,8 @@ after installing GeoClue; the underlying browser/OS cause is still unconfirmed.
       (`visibilitychange`) and throttle scrub updates.
 - [ ] Defer non-critical work (place lookup, candidate rendering) with
       `requestIdleCallback` where supported.
-- [ ] Consider bundling Tailwind (prebuilt CSS) instead of the CDN to avoid
-      runtime JIT jank on first paint.
+- [x] Remove Tailwind and its runtime CDN script; use self-contained native CSS
+      for the responsive shell, route cards, search results, trip summaries, and controls.
 - [ ] Add a Firefox-specific smoke test in CI (headless Firefox via Playwright).
 
 ### Acceptance criteria

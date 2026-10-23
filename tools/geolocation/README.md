@@ -76,7 +76,7 @@ adequate accuracy or freedom from intermittent failures.
 ## Mocked app regressions
 
 These checks replace the page's Geolocation API; they do not request real device
-location. They still need the app's CDN dependencies to load. Tile requests are
+location. They still need Leaflet from its CDN to load. Tile requests are
 blocked, and OSRM requests use the app's offline walking fallback.
 
 ```bash
