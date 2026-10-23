@@ -3898,48 +3898,117 @@
         .slice(0, 8);
     }
 
+    // Landmarks are sparse. Add query-local access points on the actual route
+    // lines, so an origin beside a served road need not walk to the next landmark.
+    // These are estimated jeepney access points, not verified designated stops.
+    function buildAccessGraph(origin, destination) {
+      const base = buildTripGraph();
+      const stops = { ...landmarks };
+      const projections = {};
+      const candidates = [origin, destination].map((point, index) => {
+        const nearby = nearestStops(point);
+        davaoRoutes.forEach(route => {
+          const info = projectPointToRoute([point.lat, point.lng], route);
+          const coords = interpolatePath(route.coordinates, route.cumulative, info.progress);
+          const distance = haversineDistance([point.lat, point.lng], coords);
+          if (distance > MAX_ACCESS_WALK) return;
+
+          // Prefer an existing landmark when it describes this same route point.
+          const known = route.landmarks.find(key =>
+            haversineDistance(coords, landmarks[key].coords) <= 40);
+          if (known) {
+            if (!nearby.some(candidate => candidate.key === known)) {
+              nearby.push({ key: known, distance: haversineDistance([point.lat, point.lng], landmarks[known].coords) });
+            }
+            return;
+          }
+
+          const key = `access-${index}-${route.id}`;
+          stops[key] = { name: `${route.name} — nearby road (estimated)`, coords, estimated: true };
+          if (!projections[route.id]) projections[route.id] = [];
+          projections[route.id].push({ key, progress: info.progress });
+          nearby.push({ key, distance });
+        });
+        return nearby;
+      });
+
+      const adjacency = {};
+      Object.entries(base).forEach(([from, edges]) => {
+        adjacency[from] = [];
+        edges.forEach(edge => {
+          if (edge.type !== 'ride') {
+            adjacency[from].push(edge);
+            return;
+          }
+          const forward = edge.toProgress >= edge.fromProgress;
+          const between = (projections[edge.route.id] || []).filter(point =>
+            point.progress >= Math.min(edge.fromProgress, edge.toProgress) &&
+            point.progress <= Math.max(edge.fromProgress, edge.toProgress));
+          between.sort((a, b) => forward ? a.progress - b.progress : b.progress - a.progress);
+          const points = [{key: edge.from, progress: edge.fromProgress}, ...between,
+            {key: edge.to, progress: edge.toProgress}];
+          const total = edge.route.cumulative.at(-1);
+          for (let i = 1; i < points.length; i++) {
+            const a = points[i - 1], b = points[i];
+            const distance = Math.abs(b.progress - a.progress) * total;
+            if (!adjacency[a.key]) adjacency[a.key] = [];
+            adjacency[a.key].push({ ...edge, from: a.key, to: b.key,
+              fromProgress: a.progress, toProgress: b.progress, distance, cost: distance });
+          }
+        });
+      });
+      return { adjacency, stops, originCandidates: candidates[0], destinationCandidates: candidates[1] };
+    }
+
+    function findTrip(origin, destination) {
+      const { adjacency, stops, originCandidates, destinationCandidates } = buildAccessGraph(origin, destination);
+      const directDistance = haversineDistance([origin.lat, origin.lng], [destination.lat, destination.lng]);
+      let bestTrip = null;
+      let bestCost = Infinity;
+
+      // A short direct walk competes with transit without any landmark detour.
+      if (directDistance <= MAX_ACCESS_WALK) {
+        bestTrip = { origin, destination, legs: [{ type: 'walk', from: origin, to: destination,
+          distance: directDistance }], totalWalk: directDistance, transfers: 0 };
+        bestCost = directDistance * WALK_COST_MULTIPLIER;
+      }
+
+      originCandidates.forEach(o => {
+        destinationCandidates.forEach(d => {
+          const path = shortestPath(adjacency, o.key, d.key);
+          if (!path || !path.edges.some(edge => edge.type === 'ride')) return;
+          const trip = buildTrip({ ...path, originStop: o, destinationStop: d, stops }, origin, destination);
+          const rides = trip.legs.filter(leg => leg.type === 'ride');
+          const first = trip.legs[0], last = trip.legs.at(-1);
+          if ((first.type === 'walk' && first.distance > MAX_ACCESS_WALK) ||
+              (last.type === 'walk' && last.distance > MAX_ACCESS_WALK)) return;
+          // Compare the instructions we will actually show, including merged
+          // access walks, rather than charging for discarded landmark waypoints.
+          const cost = rides.reduce((sum, leg) => sum + leg.distance, 0) +
+            trip.totalWalk * WALK_COST_MULTIPLIER + rides.length * BOARDING_PENALTY;
+          if (cost < bestCost || (cost === bestCost && trip.totalWalk < bestTrip.totalWalk)) {
+            bestCost = cost;
+            bestTrip = trip;
+          }
+        });
+      });
+      return bestTrip;
+    }
+
     async function planTrip(origin, destination) {
       if (!destination || (!destination.key && !Number.isFinite(destination.lat))) {
         renderRouteList(davaoRoutes, `I couldn't find that destination. Try ${supportedPlacesText()}.`);
         return;
       }
 
-      const adjacency = buildTripGraph();
-      const originCandidates = origin.key ? [{ key: origin.key, distance: 0 }] : nearestStops(origin);
-      const destinationCandidates = destination.key ? [{ key: destination.key, distance: 0 }] : nearestStops(destination);
-
-      if (!originCandidates.length || !destinationCandidates.length) {
-        renderRouteList(davaoRoutes, `You're outside the supported Davao route area. Try a starting point near a known landmark like ${supportedPlacesText()}.`);
-        return;
-      }
-
-      let best = null;
-      originCandidates.forEach(o => {
-        destinationCandidates.forEach(d => {
-          const path = shortestPath(adjacency, o.key, d.key);
-          if (!path) return;
-
-          const firstEdge = path.edges[0];
-          const accessWalk = firstEdge && firstEdge.type === 'walk'
-            ? haversineDistance([origin.lat, origin.lng], landmarks[firstEdge.to].coords)
-            : o.distance;
-          if (accessWalk > MAX_ACCESS_WALK) return;
-
-          const total = path.cost + o.distance * WALK_COST_MULTIPLIER + d.distance * WALK_COST_MULTIPLIER;
-          if (!best || total < best.total) {
-            best = { ...path, originStop: o, destinationStop: d, total };
-          }
-        });
-      });
-
-      if (!best) {
+      const trip = findTrip(origin, destination);
+      if (!trip) {
         const from = origin.label || 'your location';
         const to = destination.label || 'that destination';
         renderRouteList(davaoRoutes, `I couldn't connect <b>${escapeHtml(from)}</b> to <b>${escapeHtml(to)}</b> with the current routes. Try a nearby landmark or a different destination.`);
         return;
       }
 
-      const trip = buildTrip(best, origin, destination);
       currentTrip = trip;
       await enrichWalkPaths(trip);
       showTrip(trip);
@@ -3976,11 +4045,12 @@
 
     function buildTrip(best, origin, destination) {
       const legs = [];
+      const stops = best.stops || landmarks;
 
       best.edges.forEach(edge => {
         if (edge.type === 'walk') {
-          const from = landmarks[edge.from];
-          const to = landmarks[edge.to];
+          const from = stops[edge.from];
+          const to = stops[edge.to];
           legs.push({
             type: 'walk',
             from: { lat: from.coords[0], lng: from.coords[1], label: from.name },
@@ -4008,8 +4078,8 @@
         }
       });
 
-      const originStop = landmarks[best.originStop.key];
-      const destinationStop = landmarks[best.destinationStop.key];
+      const originStop = stops[best.originStop.key];
+      const destinationStop = stops[best.destinationStop.key];
 
       const addOriginWalk = () => {
         legs.unshift({
@@ -4056,9 +4126,21 @@
 
       const rides = legs.filter(leg => leg.type === 'ride');
 
+      if (rides.length === 0) {
+        // Stops anchor the transit graph; they are not mandatory waypoints
+        // when the trip is entirely on foot. Route the real endpoints instead.
+        legs.splice(0, legs.length, {
+          type: 'walk',
+          from: { lat: origin.lat, lng: origin.lng, label: origin.label || 'Your location' },
+          to: { lat: destination.lat, lng: destination.lng, label: destination.label || 'Destination' },
+          distance: haversineDistance([origin.lat, origin.lng], [destination.lat, destination.lng])
+        });
+      }
+
       return {
         origin,
         destination,
+        stops,
         legs,
         totalWalk: legs.filter(leg => leg.type === 'walk').reduce((sum, leg) => sum + leg.distance, 0),
         transfers: Math.max(0, rides.length - 1)
@@ -4120,12 +4202,14 @@
         if (leg.type === 'walk') {
           return `<li class="trip-leg"><span>🚶</span><div>Walk <b>${formatDistance(leg.distance)}</b> to <b>${escapeHtml(leg.to.label)}</b></div></li>`;
         }
-        const fromName = landmarks[leg.fromStop].name;
-        const toName = landmarks[leg.toStop].name;
-        return `<li class="trip-leg"><span>🚌</span><div><b class="trip-route-name" style="--route-color:${leg.route.color}">${leg.route.name}</b><br><span class="trip-stops">${fromName} → ${toName}</span> <span class="fare-badge">${leg.route.fare}</span></div></li>`;
+        const stops = trip.stops || landmarks;
+        const fromName = stops[leg.fromStop].name;
+        const toName = stops[leg.toStop].name;
+        return `<li class="trip-leg"><span>🚌</span><div><b class="trip-route-name" style="--route-color:${leg.route.color}">${escapeHtml(leg.route.name)}</b><br><span class="trip-stops">${escapeHtml(fromName)} → ${escapeHtml(toName)}</span> <span class="fare-badge">${leg.route.fare}</span></div></li>`;
       }).join('');
 
       const rides = trip.legs.filter(leg => leg.type === 'ride');
+      const estimatedAccess = rides.some(leg => trip.stops?.[leg.fromStop]?.estimated || trip.stops?.[leg.toStop]?.estimated);
       const summary = rides.length === 0
         ? 'Everything is within walking distance.'
         : `${rides.length === 1 ? 'Direct jeepney ride' : `${trip.transfers} transfer${trip.transfers > 1 ? 's' : ''}`} · ${formatDistance(trip.totalWalk)} walking`;
@@ -4135,6 +4219,7 @@
         <div class="trip-title">Trip to ${escapeHtml(trip.destination.label)}</div>
         <ol class="trip-legs">${legsHtml}</ol>
         <div class="trip-summary">${summary} · dashed walks follow roads (OSRM) when available</div>
+        ${estimatedAccess ? '<div class="trip-summary">Nearby road access is estimated from the jeep route. Check the actual boarding spot and road crossing before travelling.</div>' : ''}
         <div><a class="trip-link" href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Walking directions on Google Maps ↗</a></div>
         <div class="walk-mode-row">
           <span>Walk display:</span>
@@ -4291,7 +4376,7 @@
 
       const rides = trip.legs.filter(leg => leg.type === 'ride');
       rides.slice(0, -1).forEach(leg => {
-        const stop = landmarks[leg.toStop];
+        const stop = (trip.stops || landmarks)[leg.toStop];
         L.circleMarker(stop.coords, {
           radius: 7, color: '#f59e0b', weight: 3, fillColor: '#0f172a', fillOpacity: 1
         }).addTo(tripLayer).bindTooltip(`Transfer at ${stop.name}`);

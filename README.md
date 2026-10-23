@@ -23,7 +23,9 @@ animated jeepney marker.
   places are looked up with Google Places (when a key is saved) or OpenStreetMap
   Nominatim, then shown as pickable candidates with route-coverage hints.
 - **Trip planner** — Dijkstra over a stop graph. It supports transfers, penalizes
-  extra boardings, and allows limited walking between nearby stops.
+  extra boardings, and allows limited walking between nearby stops. It also
+  considers nearby access points along mapped jeep route lines, so a boarding
+  walk need not end at a named landmark. Short direct walks compete with rides.
 - **Route animation** — play/pause, scrub, speed control (1x/2x/5x), and a
   follow-camera option that animates a jeepney marker along the route.
 - **Geolocation** — "My Location" watches for a fix with reported accuracy of
@@ -108,7 +110,8 @@ DavaoRoutes/
 ├── README.md
 ├── ROADMAP.md   # product direction, milestones, and investigation findings
 ├── tools/
-│   └── geolocation/ # native Firefox probes and mocked browser regression checks
+│   ├── geolocation/ # native Firefox probes and mocked browser regression checks
+│   └── planner/     # direct-walk and nearby route-access regression checks
 └── AGENTS.md    # notes for coding agents
 ```
 
@@ -127,6 +130,12 @@ coordinates. Fares are indicative renditions of posted/commonly charged ranges.
 
 Routes are stored as `[lat, lng]` coordinate pairs and rendered as polylines.
 The planner treats each route as bidirectional between consecutive stops.
+For each trip, it projects the origin and destination onto each nearby route
+line and splits the graph's ride edges at those points. These temporary access
+points do not change the landmark dataset. Instructions label them as estimated
+road access, since route geometry alone does not confirm a designated stop.
+Trip costs include riding distance, walking distance, and boarding penalties;
+a direct walk of up to `MAX_ACCESS_WALK` is also considered.
 
 ### Planner tuning
 
@@ -225,13 +234,31 @@ temporary and removed after the route data was written into `index.html`.
   cancellation, destination preservation, and route-line map selection. Real
   Firefox diagnostics have returned a precise Wi-Fi estimate, but repeated real
   location reliability is still unresolved; see `tools/geolocation/README.md`.
+- Planner checks reproduce a shared-stop detour, verify a single
+  direct walking leg with recalculated distance and geometry endpoints, and
+  ensure jeepney trips retain their rides and access/egress walking. They also
+  cover an approximate Flores-area origin, route-edge splitting in both
+  directions, estimated access labels, and query isolation.
 
-Last verified: **October 24, 2026** (location checks; earlier route checks on October 23).
+Run the planner regression checks with the app served by `./run.sh`,
+Playwright's Firefox installed, and installed Google Chrome (or use
+`--browsers firefox` to check Firefox alone):
+
+```bash
+uv run --with playwright python tools/planner/regression_checks.py
+```
+
+Last verified: **October 24, 2026** (location, direct-walk, and route-access checks;
+earlier route checks on October 23).
 
 ## Known limitations
 
 - Coordinates are approximate boarding points; the planner snaps each landmark to
   the nearest point on a route.
+- Nearby road access is inferred from route geometry. It does not verify legal
+  stops, the correct side of the road, pedestrian entrances, or safe crossings.
+  Selection uses straight-line walking estimates; OSRM geometry is requested
+  after choosing the trip and does not yet affect candidate ranking.
 - Routes are modeled as bidirectional lines even where the real service is a
   one-way loop (notably Route 10 southbound).
 - Fares are indicative, not an LTFRB fare matrix.
