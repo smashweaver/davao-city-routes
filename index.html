@@ -58,7 +58,7 @@
           <button class="preset-tag text-[10px] bg-slate-700 hover:bg-amber-500 hover:text-slate-950 px-2 py-0.5 rounded text-slate-300 transition" data-query="Roxas Night Market">Roxas Market</button>
           <button class="preset-tag text-[10px] bg-slate-700 hover:bg-amber-500 hover:text-slate-950 px-2 py-0.5 rounded text-slate-300 transition" data-query="Toril">Toril</button>
         </div>
-        <p class="text-[10px] text-slate-500 mt-2">Uses your GPS location. Type "from Matina to Abreeza" to set a different starting point.</p>
+        <p class="text-[10px] text-slate-500 mt-2">Set your location with My Location, or type "from Matina to Abreeza".</p>
         <details class="mt-2">
           <summary class="text-[10px] text-slate-500 cursor-pointer select-none">Search settings</summary>
           <div class="mt-2 flex gap-1.5">
@@ -3118,6 +3118,8 @@
     let pendingDestination = null;
     let awaitingMapPick = false;
     let locateAttempt = 0;
+    let locationWatchId = null;
+    let locationGuard = null;
 
     // --- PLACES ---
     // Coordinates are approximate boarding points. They are snapped to the
@@ -3160,6 +3162,8 @@
 
     const MAX_TRANSFER_WALK = 1400;
     const MAX_ACCESS_WALK = 1600;
+    const LOCATION_ACCURACY_LIMIT = 500; // metres; reject broad IP estimates
+    const LOCATION_TIMEOUT = 12000;
     const BOARDING_PENALTY = 4200;
     const WALK_COST_MULTIPLIER = 3;
 
@@ -3290,7 +3294,7 @@
 
     function setJeepMarker(coord, color) {
       if (!jeepMarker) {
-        jeepMarker = L.marker(coord, { icon: createJeepIcon(color) }).addTo(map);
+        jeepMarker = L.marker(coord, { icon: createJeepIcon(color), bubblingMouseEvents: true }).addTo(map);
       } else {
         jeepMarker.setIcon(createJeepIcon(color));
         jeepMarker.setLatLng(coord);
@@ -4029,16 +4033,12 @@
         }).addTo(map);
 
         polyline.bindPopup(`<b>${route.name}</b><br>${route.description}`);
+        // Popup clicks do not reach the map's click handler.
+        polyline.on('click', pickUserLocation);
         polylineLayers[route.id] = polyline;
       });
 
-      map.on('click', e => {
-        if (!awaitingMapPick) return;
-        awaitingMapPick = false;
-        const target = pendingDestination;
-        pendingDestination = null;
-        applyUserLocation(e.latlng.lat, e.latlng.lng, target);
-      });
+      map.on('click', pickUserLocation);
 
       tripLayer = L.layerGroup().addTo(map);
       selectRoute(davaoRoutes[0]);
@@ -4132,7 +4132,7 @@
         iconSize: [28, 28],
         iconAnchor: [14, 14]
       });
-      L.marker([trip.destination.lat, trip.destination.lng], { icon: destinationIcon })
+      L.marker([trip.destination.lat, trip.destination.lng], { icon: destinationIcon, bubblingMouseEvents: true })
         .addTo(tripLayer)
         .bindTooltip(trip.destination.label);
 
@@ -4189,6 +4189,26 @@
     }
 
     // --- LOCATION ---
+    function cancelLocationRequest() {
+      locateAttempt++;
+      clearTimeout(locationGuard);
+      locationGuard = null;
+      if (locationWatchId !== null) {
+        navigator.geolocation.clearWatch(locationWatchId);
+        locationWatchId = null;
+      }
+    }
+
+    function pickUserLocation(e) {
+      if (!awaitingMapPick) return;
+      awaitingMapPick = false;
+      cancelLocationRequest();
+      const target = pendingDestination;
+      pendingDestination = null;
+      map.closePopup();
+      applyUserLocation(e.latlng.lat, e.latlng.lng, target);
+    }
+
     function restoreLocateButton() {
       const btn = document.getElementById('locate-btn');
       btn.disabled = false;
@@ -4196,99 +4216,96 @@
       btn.innerHTML = '📍 My Location';
     }
 
-    // Firefox on Linux relies on GeoClue; when it is missing, calling the
-    // Geolocation API can freeze the whole browser with no way for page JS to
-    // cancel it. Detect that platform and let the user pick their spot on the
-    // map instead (accurate, and no native call).
-    function isLinuxFirefox() {
-      const ua = navigator.userAgent || '';
-      return /Firefox\//.test(ua) && /Linux/.test(ua);
-    }
-
-    function applyUserLocation(lat, lng, destination) {
+    function applyUserLocation(lat, lng, destination, accuracy = null) {
       userLocation = { lat, lng, label: 'My Location' };
+      if (Number.isFinite(accuracy)) userLocation.accuracy = accuracy;
       setOriginMarker(userLocation);
       map.setView([lat, lng], 14);
       restoreLocateButton();
       if (destination) {
         planTrip(userLocation, destination);
       } else {
-        showIdleState('Location set. Where do you want to go?');
+        const detail = Number.isFinite(accuracy) ? ` (reported accuracy: about ${Math.round(accuracy)} m)` : '';
+        showIdleState(`Location set${detail}. Where do you want to go?`);
       }
     }
 
-    function promptMapPick(destination) {
+    // Manual fallback when automatic location is unavailable or too imprecise.
+    function promptMapPick(destination, message = 'I couldn\'t read your location. <b>Tap your location on the map</b>, or type a starting point like <b>from Matina to Abreeza</b>.') {
       awaitingMapPick = true;
       pendingDestination = destination;
       const btn = document.getElementById('locate-btn');
       btn.disabled = true;
       btn.classList.add('opacity-60');
       btn.textContent = '🖱️ Tap your spot on the map';
-      renderRouteList(davaoRoutes, 'Firefox on Linux can\'t read GPS here (it can freeze the browser). <b>Tap your location on the map</b>, or type a starting point like <b>from Flores to Abreeza</b>.');
+      renderRouteList(davaoRoutes, message);
     }
 
     function locateUser(destination = null) {
+      cancelLocationRequest();
+      const attempt = locateAttempt;
+      awaitingMapPick = false;
+
       if (!navigator.geolocation) {
-        renderRouteList(davaoRoutes, 'Geolocation is not available in this browser. Type your starting point instead, e.g. <b>from Matina to Abreeza</b>.');
+        promptMapPick(destination, 'Automatic location is not available. <b>Tap your location on the map</b>, or type a starting point like <b>from Matina to Abreeza</b>.');
         return;
       }
 
-      if (isLinuxFirefox()) {
-        promptMapPick(destination);
-        return;
-      }
-
-      const attempt = ++locateAttempt;
       pendingDestination = destination;
       const btn = document.getElementById('locate-btn');
       btn.disabled = true;
       btn.classList.add('opacity-60');
       btn.textContent = '⏳ Locating…';
 
-      const guard = setTimeout(() => {
+      let receivedCoarseFix = false;
+      const fail = () => {
         if (attempt !== locateAttempt) return;
-        locateAttempt++;
-        pendingDestination = null;
-        restoreLocateButton();
-        renderRouteList(davaoRoutes, 'Location is taking too long. Your browser may be waiting on its location service. Type your starting point instead, e.g. <b>from Bankerohan to Toril</b>.');
-      }, 9000);
+        cancelLocationRequest();
+        const message = receivedCoarseFix
+          ? 'Your location estimate is too broad to plan a commute. Type a starting point like <b>from Matina to Abreeza</b>, or <b>tap your location on the map</b>.'
+          : undefined;
+        promptMapPick(destination, message);
+      };
+      locationGuard = setTimeout(fail, LOCATION_TIMEOUT);
 
-      navigator.geolocation.getCurrentPosition(
-        position => {
-          if (attempt !== locateAttempt) return;
-          clearTimeout(guard);
-          userLocation = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            label: 'My Location'
-          };
-          setOriginMarker(userLocation);
-          map.setView([userLocation.lat, userLocation.lng], 14);
-          restoreLocateButton();
-
-          const target = pendingDestination;
-          pendingDestination = null;
-          if (target) {
-            planTrip(userLocation, target);
-          } else {
-            showIdleState('Location set. Where do you want to go?');
-          }
-        },
-        () => {
-          if (attempt !== locateAttempt) return;
-          clearTimeout(guard);
-          pendingDestination = null;
-          restoreLocateButton();
-          renderRouteList(davaoRoutes, 'I couldn\'t get your GPS location. Allow location access, or type your starting point, e.g. <b>from Matina to Abreeza</b>.');
-        },
-        { enableHighAccuracy: false, timeout: 7000, maximumAge: 300000 }
-      );
+      try {
+        // Firefox can deliver IP and Wi-Fi fixes in either order. Keep watching
+        // until a useful fix arrives, then stop so a coarse update cannot win.
+        locationWatchId = navigator.geolocation.watchPosition(
+          position => {
+            if (attempt !== locateAttempt) return;
+            const { latitude, longitude, accuracy } = position.coords;
+            if (!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+                !Number.isFinite(accuracy) || accuracy < 0) return;
+            if (accuracy > LOCATION_ACCURACY_LIMIT) {
+              receivedCoarseFix = true;
+              btn.textContent = '⏳ Improving accuracy…';
+              return;
+            }
+            cancelLocationRequest();
+            pendingDestination = null;
+            applyUserLocation(latitude, longitude, destination, accuracy);
+          },
+          error => {
+            // A watch can recover after a provider timeout. Permission denial
+            // and provider failures still end the request immediately.
+            if (error.code !== 3) fail();
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      } catch (err) {
+        fail();
+      }
     }
 
     // --- CHAT SEARCH ---
     async function handleSearch(raw) {
       const query = raw.trim();
       if (!query) return;
+      cancelLocationRequest();
+      awaitingMapPick = false;
+      pendingDestination = null;
+      restoreLocateButton();
       geocodeSequence++;
 
       const parsed = parseTripQuery(query);

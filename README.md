@@ -3,6 +3,9 @@
 An interactive, single-file web app for exploring Davao City PUJ (jeepney) routes,
 planning a commute, and animating a jeepney along the chosen road path.
 
+This repository is an exploratory spike for a planned public app, with
+advertising as the intended monetization model.
+
 The app ships five verified routes, a simple trip planner, and a map with an
 animated jeepney marker.
 
@@ -20,8 +23,9 @@ animated jeepney marker.
   extra boardings, and allows limited walking between nearby stops.
 - **Route animation** — play/pause, scrub, speed control (1x/2x/5x), and a
   follow-camera option that animates a jeepney marker along the route.
-- **Geolocation** — "My Location" uses the browser Geolocation API, with a
-  timeout guard so a stalled location service does not lock the UI.
+- **Geolocation** — "My Location" watches for a fix with reported accuracy of
+  500 m or better, stops after accepting it, and offers a manual fallback if
+  location is unavailable or remains too broad for 12 seconds.
 - **Responsive layout** — sidebar panel + map, usable on desktop and mobile.
 
 ## Tech stack
@@ -152,6 +156,10 @@ The dataset intentionally keeps jeepneys on established PUJ corridors:
 
 This app was produced and verified with the following tools:
 
+Saved geolocation diagnostics and browser regression checks are in
+[`tools/geolocation/`](tools/geolocation/README.md), with runnable commands and
+the current investigation findings.
+
 - **Playwright + headless Chromium/Chrome** — page-load, route-render, route
   selection, animation, and trip-planning checks. CLI helper `playwright-cli` is
   also available for interactive snapshots.
@@ -166,8 +174,8 @@ This app was produced and verified with the following tools:
 - **Web search** — official/community route descriptions and bypass-road status.
 
 No API key is required for the default OpenStreetMap lookup. A Google Places key
-is optional and is stored only in the browser. All build scripts were temporary
-and removed after the route data was written into `index.html`.
+is optional and is stored only in the browser. Route-data build scripts were
+temporary and removed after the route data was written into `index.html`.
 
 ## Verification performed
 
@@ -182,8 +190,13 @@ and removed after the route data was written into `index.html`.
 - Place lookup: `savemore` returns Bangkal/Bunawan candidates via Nominatim;
   selecting Bangkal plans `Abreeza → Savemore`; Google Places parsing was tested
   with a mocked response; unknown places show the Google Maps search fallback.
+- In Firefox and installed Chrome: mocked location-flow checks cover precise
+  versus coarse updates, watch cleanup, repeated requests, denial, timeout,
+  cancellation, destination preservation, and route-line map selection. Real
+  Firefox diagnostics have returned a precise Wi-Fi estimate, but repeated real
+  location reliability is still unresolved; see `tools/geolocation/README.md`.
 
-Last verified: **October 23, 2026**.
+Last verified: **October 24, 2026** (location checks; earlier route checks on October 23).
 
 ## Known limitations
 
@@ -202,10 +215,10 @@ Last verified: **October 23, 2026**.
 - Typed place queries are sent to the selected geocoding provider.
 - Place lookup may be blocked on `file://`; use `./run.sh` as recommended.
 - Requires internet for the CDN assets, map tiles, and place lookup.
-- Browser geolocation on Linux Firefox can freeze the whole browser when the OS
-  GeoClue service is missing. To avoid this, "My Location" on Linux Firefox asks
-  you to tap your spot on the map (accurate, no native call) or type a starting
-  point, instead of using the Geolocation API.
+- Linux Firefox location reliability remains under investigation. A missing
+  GeoClue session agent blocked client creation, and real network-provider tests
+  have produced both precise Wi-Fi fixes and unusably broad IP estimates. The
+  app waits for a usable automatic fix; typing an origin remains available.
 
 ## Attribution
 
