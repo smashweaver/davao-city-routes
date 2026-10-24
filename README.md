@@ -71,6 +71,30 @@ There is **no build step and no package manifest**. The app is one HTML file plu
 a small server helper. Internet access is required for the Leaflet CDN and OSM
 map tiles; application styling does not require a network request.
 
+### Code organization
+
+The inline script is layered so domain logic (backend) stays separate from
+presentation (frontend). Each section is marked with a banner; later sections
+reach earlier ones only through the small APIs below.
+
+| Layer | Section | Responsibility |
+| --- | --- | --- |
+| Backend | `DATA` | `StaticData` loader owns the route and landmark tables and derives distances/stop progress once. |
+| Backend | `GEOMETRY & TEXT` | Pure helpers: distance, path interpolation, point projection, formatting. |
+| Backend | `PLACES` | Query parsing and landmark resolution. |
+| Backend | `SERVICES` | Geocoding (Google Places, Nominatim) and walk routing (OSRM). |
+| Backend | `PLANNER` | Stop graph, Dijkstra search, candidate ranking, `buildTrip()`. |
+| Backend | `JOURNEY` | `WaypointFactory` (one tagged waypoint) and `JourneyBuilder` (ordered waypoints + walk/ride legs). |
+| Frontend | `PANEL VIEW` | Route list and written trip steps. |
+| Frontend | `MAP VIEW` | Leaflet layers, markers, and trip drawing. |
+| Frontend | `ANIMATION` | Playback loop. |
+| Frontend | `CONTROLLER` | State, geolocation, search, and event wiring. |
+
+The layering uses two light patterns rather than a framework: a **loader**
+(`StaticData`) for the static tables, and a **factory + builder**
+(`WaypointFactory` / `JourneyBuilder`) for the journey result. No dependency is
+added for this; the geometry operations are plain JavaScript.
+
 Development and verification tooling:
 
 | Purpose | Tool |

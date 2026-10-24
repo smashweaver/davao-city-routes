@@ -20,7 +20,12 @@ manifest. Serve with `./run.sh [port]` (default 8000). Full documentation:
 - Check `git status --short` and preserve existing uncommitted work.
 
 ## Key facts
-- All app logic, data, planner, map, and animation live in `index.html`.
+- All app logic, data, planner, map, and animation live in `index.html`, in
+  banner-labelled layers: backend (`DATA`, `GEOMETRY & TEXT`, `PLACES`,
+  `SERVICES`, `PLANNER`, `JOURNEY`) then frontend (`PANEL VIEW`, `MAP VIEW`,
+  `ANIMATION`, `CONTROLLER`). Put new domain code in the backend layers and new
+  rendering in the frontend layers; read the static tables through `StaticData`
+  and build journeys through `JourneyBuilder`/`buildJourney`.
 - Route/landmark data and planner tuning constants are inlined near the landmarks
   block (`MAX_ACCESS_WALK`, `MAX_TRANSFER_WALK`, `BOARDING_PENALTY`,
   `WALK_COST_MULTIPLIER`, `PREFER_DIRECT_WALK`, `MAX_RIDE_CANDIDATES`,

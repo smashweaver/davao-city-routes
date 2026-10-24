@@ -276,7 +276,32 @@
   </main>
 
   <script>
-    // --- DAVAO JEEPNEY ROUTES DATASET ---
+    /*
+     * Davao Jeep Routes — single-file application.
+     *
+     * The script is layered so domain logic (backend) stays separate from
+     * presentation (frontend). Later sections only reach earlier ones through the
+     * small APIs named below.
+     *
+     *   BACKEND — data, domain, services      FRONTEND — view, controller
+     *   ---------------------------------     ---------------------------------
+     *   DATA      StaticData loader           PANEL VIEW   route list, trip steps
+     *   GEOMETRY  pure path math              MAP VIEW     Leaflet layers, markers
+     *   PLACES    query and place parsing     ANIMATION    playback loop
+     *   SERVICES  geocoding, walk routing     CONTROLLER   state, location, search
+     *   PLANNER   stop graph, Dijkstra, trip
+     *   JOURNEY   waypoints, walk/ride legs
+     *
+     * Light design patterns, used deliberately and not everywhere:
+     *   - StaticData      loader  — owns the static tables and derives route
+     *                     distances and stop progress once, not while drawing.
+     *   - WaypointFactory factory — builds one tagged waypoint record.
+     *   - JourneyBuilder  builder — assembles ordered waypoints and legs.
+     */
+
+    // ================================================================
+    // BACKEND · DATA — the Davao jeepney route and landmark tables
+    // ================================================================
     const davaoRoutes = [
       {
         id: "sasa",
@@ -3262,7 +3287,9 @@
       }
     ];
 
-    // --- STATE MANAGEMENT ---
+    // ================================================================
+    // FRONTEND · CONTROLLER — application state
+    // ================================================================
     let map;
     let polylineLayers = {};
     let jeepMarker = null;
@@ -3288,7 +3315,9 @@
     let locationWatchId = null;
     let locationGuard = null;
 
-    // --- PLACES ---
+    // ================================================================
+    // BACKEND · DATA — landmark table
+    // ================================================================
     // Coordinates are approximate boarding points. They are snapped to the
     // nearest point on each route when the planner is built.
     const landmarks = {
@@ -3337,7 +3366,44 @@
     const BOARDING_PENALTY = 4200;
     const WALK_COST_MULTIPLIER = 3;
 
-    // --- HELPERS ---
+    // ================================================================
+    // BACKEND · DATA — static table loader
+    // ================================================================
+    // Owns the raw route and landmark tables and derives per-route distances and
+    // stop progress once, so the map code can stay about drawing. Call load() at
+    // start-up; read tables through the accessors.
+    const StaticData = {
+      routes: davaoRoutes,
+      landmarks,
+
+      load() {
+        this.routes.forEach(route => {
+          route.cumulative = buildCumulativeDistances(route.coordinates);
+          route.stopInfo = {};
+          route.landmarks.forEach(key => {
+            const place = this.landmarks[key];
+            if (place) route.stopInfo[key] = projectPointToRoute(place.coords, route);
+          });
+        });
+        return this;
+      },
+
+      place(id) {
+        return this.landmarks[id];
+      },
+
+      route(id) {
+        return this.routes.find(route => route.id === id);
+      },
+
+      routesFor(placeId) {
+        return this.routes.filter(route => route.landmarks.includes(placeId));
+      }
+    };
+
+    // ================================================================
+    // BACKEND · GEOMETRY & TEXT — pure helpers
+    // ================================================================
     function normalizeText(text) {
       return text
         .normalize('NFD')
@@ -3539,7 +3605,9 @@
       }
     }
 
-    // --- PLACE / CHAT PARSING ---
+    // ================================================================
+    // BACKEND · PLACES — query and place parsing
+    // ================================================================
     function parseCoordinate(text) {
       const match = text.trim().match(/^([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*,\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))$/);
       if (!match) return null;
@@ -3623,6 +3691,9 @@
       return 'Abreeza, SM Lanang, Sasa Wharf, Ateneo de Davao, Roxas Market, Toril, Matina, Mintal, Calinan, Bankerohan, Uyanguren, SPMC, or SM City';
     }
 
+    // ================================================================
+    // BACKEND · SERVICES — geocoding (Google Places, Nominatim)
+    // ================================================================
     const GOOGLE_KEY_STORAGE = 'davaoRoutesGoogleMapsKey';
     const GEOCODE_CACHE_STORAGE = 'davaoRoutesGeocodeCacheV1';
     const GEOCODE_CACHE_TTL = 1000 * 60 * 60 * 24 * 7;
@@ -3863,7 +3934,9 @@
       locateUser(chosen);
     }
 
-    // --- TRIP GRAPH ---
+    // ================================================================
+    // BACKEND · PLANNER — stop graph, Dijkstra search, and trip building
+    // ================================================================
     let tripGraph = null;
 
     function buildTripGraph() {
@@ -4125,6 +4198,9 @@
       showTrip(trip);
     }
 
+    // ================================================================
+    // BACKEND · SERVICES — walk routing (OSRM with straight-line fallback)
+    // ================================================================
     const walkPathCache = new Map();
 
     async function fetchWalkPath(from, to) {
@@ -4278,18 +4354,20 @@
       };
     }
 
-    // --- JOURNEY MODEL ---
+    // ================================================================
+    // BACKEND · JOURNEY — waypoints and connected walk/ride legs
+    // ================================================================
     // The planner (buildTrip) works in graph terms: rides reference stop keys and
     // route progress, and walks carry their own endpoint records. Rendering and
     // playback instead need one ordered result that already knows where walking
-    // stops and a jeep ride begins. buildJourney() turns a planned trip into that
+    // stops and a jeep ride begins. JourneyBuilder turns a planned trip into that
     // result, so the map, the instructions, and the animation never re-derive the
     // walk/ride boundaries from route geometry themselves.
     //
     //   journey = {
-    //     origin, destination, stops, totalWalk, transfers, estimatedWalking,
+    //     origin, destination, stops, totalWalk, totalRide, estimatedWalking,
     //     waypoints: [{ id, type, lat, lng, label, stopKey, routeIds[], estimated }],
-    //     legs: [{ id, type: 'walk' | 'ride', fromId, toId, path: [[lat, lng], ...],
+    //     legs: [{ type: 'walk' | 'ride', fromId, toId, path: [[lat, lng], ...],
     //              distance, estimated, synthetic?,
     //              // ride legs also keep: route, routeId, routeName, routeColor,
     //              //   fare, fromStop, toStop, fromProgress, toProgress
@@ -4327,99 +4405,104 @@
       };
     }
 
-    // Build one renderer-ready leg between two waypoints. `source` is the planner
-    // leg it came from, or null for a short unplanned connector.
-    function buildJourneyLeg(source, fromWaypoint, toWaypoint) {
-      const from = { lat: fromWaypoint.lat, lng: fromWaypoint.lng, label: fromWaypoint.label };
-      const to = { lat: toWaypoint.lat, lng: toWaypoint.lng, label: toWaypoint.label };
-      const straight = [[from.lat, from.lng], [to.lat, to.lng]];
-
-      if (!source) {
-        // For example the last few metres between the origin and the road access
-        // point. Kept explicit so neighbouring paths never leave an unexplained gap.
+    // Factory for one tagged waypoint record.
+    const WaypointFactory = {
+      create(index, point, type, routeIds) {
         return {
-          type: 'walk', from, to, fromId: fromWaypoint.id, toId: toWaypoint.id,
-          path: straight, distance: haversineDistance([from.lat, from.lng], [to.lat, to.lng]),
-          estimated: true, synthetic: true
+          id: `wp-${index}`,
+          type,
+          lat: point.lat,
+          lng: point.lng,
+          label: point.label,
+          stopKey: point.stopKey || null,
+          estimated: !!point.estimated,
+          routeIds: [...new Set(routeIds)]
         };
       }
+    };
 
-      if (source.type === 'walk') {
-        const path = (source.path && source.path.length > 1) ? source.path.slice() : straight.slice();
-        path[0] = [from.lat, from.lng];
-        path[path.length - 1] = [to.lat, to.lng];
-        return { ...source, from, to, fromId: fromWaypoint.id, toId: toWaypoint.id,
-          path, estimated: !source.path };
-      }
+    // Builder for the ordered journey result.
+    const JourneyBuilder = {
+      build(trip) {
+        const stops = trip.stops || landmarks;
+        const origin = { lat: trip.origin.lat, lng: trip.origin.lng, label: trip.origin.label || 'Your location' };
+        const destination = { lat: trip.destination.lat, lng: trip.destination.lng, label: trip.destination.label || 'Destination' };
+        const legs = trip.legs || [];
 
-      const path = routeSlice(source.route, source.fromProgress, source.toProgress);
-      path[0] = [from.lat, from.lng];
-      path[path.length - 1] = [to.lat, to.lng];
-      return { ...source, fromId: fromWaypoint.id, toId: toWaypoint.id, path,
-        routeId: source.route.id, routeName: source.route.name,
-        routeColor: source.route.color, fare: source.route.fare, estimated: false };
-    }
+        const chain = this.chainBoundaries(legs, stops, origin, destination);
+        const waypoints = chain.map((entry, index) => {
+          const { type, routeIds } = this.classify(entry, index, chain.length, legs);
+          return WaypointFactory.create(index, entry, type, routeIds);
+        });
+        const orderedLegs = this.connectLegs(chain, waypoints, legs);
 
-    function buildJourney(trip) {
-      const stops = trip.stops || landmarks;
-      const origin = { lat: trip.origin.lat, lng: trip.origin.lng, label: trip.origin.label || 'Your location' };
-      const destination = { lat: trip.destination.lat, lng: trip.destination.lng, label: trip.destination.label || 'Destination' };
-      const legs = trip.legs || [];
+        const walks = orderedLegs.filter(leg => leg.type === 'walk');
+        return {
+          ...trip,
+          origin: trip.origin,
+          destination: trip.destination,
+          stops,
+          waypoints,
+          legs: orderedLegs,
+          totalWalk: trip.totalWalk,
+          totalRide: orderedLegs.filter(leg => leg.type === 'ride').reduce((sum, leg) => sum + leg.distance, 0),
+          estimatedWalking: walks.some(leg => !leg.synthetic && leg.estimated)
+        };
+      },
 
-      // 1. Resolve the shared boundary of each consecutive pair of legs to a
-      //    single point. When a ride touches the boundary its route point wins:
-      //    that is exactly where the passenger boards or alights.
-      const endpoints = legs.map(leg => journeyLegEndpoints(leg, stops));
-      for (let i = 0; i < legs.length - 1; i++) {
-        const boundary = legs[i + 1].type === 'ride'
-          ? { ...endpoints[i + 1].start }
-          : { ...endpoints[i].end };
-        endpoints[i].end = { ...boundary };
-        endpoints[i + 1].start = { ...boundary };
-      }
-
-      // 2. Chain the endpoints into ordered waypoint candidates, merging a shared
-      //    boundary into one waypoint.
-      const chain = [];
-      const addToChain = point => {
-        const last = chain[chain.length - 1];
-        if (last && sameWaypointPoint(last, point)) {
-          if (point.estimated) last.estimated = true;
-          return last;
+      // Resolve each shared boundary to one point (a ride's route point wins),
+      // then chain the endpoints into ordered waypoint entries.
+      chainBoundaries(legs, stops, origin, destination) {
+        const endpoints = legs.map(leg => journeyLegEndpoints(leg, stops));
+        for (let i = 0; i < legs.length - 1; i++) {
+          const boundary = legs[i + 1].type === 'ride'
+            ? { ...endpoints[i + 1].start }
+            : { ...endpoints[i].end };
+          endpoints[i].end = { ...boundary };
+          endpoints[i + 1].start = { ...boundary };
         }
-        const entry = { lat: point.lat, lng: point.lng, label: point.label,
-          stopKey: point.stopKey || null, estimated: !!point.estimated,
-          arrives: [], departs: [] };
-        chain.push(entry);
-        return entry;
-      };
 
-      addToChain(origin);
-      endpoints.forEach((endpoint, i) => {
-        addToChain(endpoint.start).departs.push(i);
-        addToChain(endpoint.end).arrives.push(i);
-      });
-      addToChain(destination);
+        const chain = [];
+        const addToChain = point => {
+          const last = chain[chain.length - 1];
+          if (last && sameWaypointPoint(last, point)) {
+            if (point.estimated) last.estimated = true;
+            return last;
+          }
+          const entry = { lat: point.lat, lng: point.lng, label: point.label,
+            stopKey: point.stopKey || null, estimated: !!point.estimated,
+            arrives: [], departs: [] };
+          chain.push(entry);
+          return entry;
+        };
 
-      // The first and last waypoints are always the actual origin and destination.
-      chain[0].label = origin.label;
-      chain[0].estimated = false;
-      const finalEntry = chain[chain.length - 1];
-      finalEntry.label = destination.label;
-      finalEntry.estimated = false;
-      finalEntry.lat = destination.lat;
-      finalEntry.lng = destination.lng;
+        addToChain(origin);
+        endpoints.forEach((endpoint, i) => {
+          addToChain(endpoint.start).departs.push(i);
+          addToChain(endpoint.end).arrives.push(i);
+        });
+        addToChain(destination);
 
-      // 3. Tag every waypoint from the legs that meet there, and record the route
-      //    identity of boarding and alighting points.
-      const waypoints = chain.map((entry, index) => {
+        // The first and last waypoints are always the actual origin and destination.
+        chain[0].label = origin.label;
+        chain[0].estimated = false;
+        const finalEntry = chain[chain.length - 1];
+        finalEntry.label = destination.label;
+        finalEntry.estimated = false;
+        finalEntry.lat = destination.lat;
+        finalEntry.lng = destination.lng;
+        return chain;
+      },
+
+      // Tag a waypoint from the legs that meet there and list their route ids.
+      classify(entry, index, total, legs) {
         const arrives = entry.arrives.map(i => legs[i]);
         const departs = entry.departs.map(i => legs[i]);
         const arrivesRide = arrives.some(leg => leg.type === 'ride');
         const departsRide = departs.some(leg => leg.type === 'ride');
         let type;
         if (index === 0) type = 'origin';
-        else if (index === chain.length - 1) type = 'destination';
+        else if (index === total - 1) type = 'destination';
         else if (arrivesRide && departsRide) type = 'transfer';
         else if (departsRide) type = 'board';
         else if (arrivesRide) type = 'alight';
@@ -4428,50 +4511,74 @@
         const routeIds = arrives.concat(departs)
           .filter(leg => leg.type === 'ride')
           .map(leg => leg.route.id);
-        return {
-          id: `wp-${index}`, type,
-          lat: entry.lat, lng: entry.lng,
-          label: entry.label, stopKey: entry.stopKey,
-          estimated: entry.estimated,
-          routeIds: [...new Set(routeIds)]
-        };
-      });
+        return { type, routeIds };
+      },
 
-      // 4. Connect consecutive waypoints into ordered legs, rebuilding the planner
-      //    leg that spans each pair and filling any gap with a short walk.
-      const spanByLeg = {};
-      chain.forEach((entry, index) => {
-        entry.departs.forEach(i => { spanByLeg[i] = spanByLeg[i] || {}; spanByLeg[i].from = index; });
-        entry.arrives.forEach(i => { spanByLeg[i] = spanByLeg[i] || {}; spanByLeg[i].to = index; });
-      });
-      const legForSpan = {};
-      Object.entries(spanByLeg).forEach(([i, span]) => {
-        if (span.from !== undefined && span.to !== undefined && span.from !== span.to) {
-          legForSpan[`${span.from}-${span.to}`] = legs[Number(i)];
+      // Connect consecutive waypoints, reusing the planner leg that spans each
+      // pair and filling any gap with a short straight walk.
+      connectLegs(chain, waypoints, legs) {
+        const spanByLeg = {};
+        chain.forEach((entry, index) => {
+          entry.departs.forEach(i => { spanByLeg[i] = spanByLeg[i] || {}; spanByLeg[i].from = index; });
+          entry.arrives.forEach(i => { spanByLeg[i] = spanByLeg[i] || {}; spanByLeg[i].to = index; });
+        });
+        const legForSpan = {};
+        Object.entries(spanByLeg).forEach(([i, span]) => {
+          if (span.from !== undefined && span.to !== undefined && span.from !== span.to) {
+            legForSpan[`${span.from}-${span.to}`] = legs[Number(i)];
+          }
+        });
+
+        const ordered = [];
+        for (let i = 0; i < waypoints.length - 1; i++) {
+          const source = legForSpan[`${i}-${i + 1}`] || null;
+          ordered.push(this.buildLeg(source, waypoints[i], waypoints[i + 1]));
         }
-      });
+        return ordered;
+      },
 
-      const orderedLegs = [];
-      for (let i = 0; i < waypoints.length - 1; i++) {
-        const source = legForSpan[`${i}-${i + 1}`] || null;
-        orderedLegs.push(buildJourneyLeg(source, waypoints[i], waypoints[i + 1]));
+      // Build one renderer-ready leg. `source` is the planner leg it came from,
+      // or null for a short unplanned connector.
+      buildLeg(source, fromWaypoint, toWaypoint) {
+        const from = { lat: fromWaypoint.lat, lng: fromWaypoint.lng, label: fromWaypoint.label };
+        const to = { lat: toWaypoint.lat, lng: toWaypoint.lng, label: toWaypoint.label };
+        const straight = [[from.lat, from.lng], [to.lat, to.lng]];
+
+        if (!source) {
+          // For example the last few metres between the origin and the road access
+          // point. Kept explicit so neighbouring paths never leave an unexplained gap.
+          return {
+            type: 'walk', from, to, fromId: fromWaypoint.id, toId: toWaypoint.id,
+            path: straight, distance: haversineDistance([from.lat, from.lng], [to.lat, to.lng]),
+            estimated: true, synthetic: true
+          };
+        }
+
+        if (source.type === 'walk') {
+          const path = (source.path && source.path.length > 1) ? source.path.slice() : straight.slice();
+          path[0] = [from.lat, from.lng];
+          path[path.length - 1] = [to.lat, to.lng];
+          return { ...source, from, to, fromId: fromWaypoint.id, toId: toWaypoint.id,
+            path, estimated: !source.path };
+        }
+
+        const path = routeSlice(source.route, source.fromProgress, source.toProgress);
+        path[0] = [from.lat, from.lng];
+        path[path.length - 1] = [to.lat, to.lng];
+        return { ...source, fromId: fromWaypoint.id, toId: toWaypoint.id, path,
+          routeId: source.route.id, routeName: source.route.name,
+          routeColor: source.route.color, fare: source.route.fare, estimated: false };
       }
+    };
 
-      const walks = orderedLegs.filter(leg => leg.type === 'walk');
-      return {
-        ...trip,
-        origin: trip.origin,
-        destination: trip.destination,
-        stops,
-        waypoints,
-        legs: orderedLegs,
-        totalWalk: trip.totalWalk,
-        totalRide: orderedLegs.filter(leg => leg.type === 'ride').reduce((sum, leg) => sum + leg.distance, 0),
-        estimatedWalking: walks.some(leg => !leg.synthetic && leg.estimated)
-      };
+    // Facade used by the views.
+    function buildJourney(trip) {
+      return JourneyBuilder.build(trip);
     }
 
-    // --- UI RENDER ---
+    // ================================================================
+    // FRONTEND · PANEL VIEW — route list and written trip steps
+    // ================================================================
     function chatBox(html) {
       const box = document.createElement('div');
       box.className = 'assistant-card';
@@ -4575,7 +4682,9 @@
       davaoRoutes.forEach(route => container.appendChild(createRouteCard(route, tripRouteIds)));
     }
 
-    // --- MAP DISPLAY ---
+    // ================================================================
+    // FRONTEND · MAP VIEW — Leaflet layers, markers, and trip drawing
+    // ================================================================
     function initMap() {
       map = L.map('map', { zoomControl: false }).setView([7.0736, 125.6110], 13);
       L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -4585,14 +4694,10 @@
         attribution: '&copy; OpenStreetMap contributors'
       }).addTo(map);
 
-      davaoRoutes.forEach(route => {
-        route.cumulative = buildCumulativeDistances(route.coordinates);
-        route.stopInfo = {};
-        route.landmarks.forEach(key => {
-          const place = landmarks[key];
-          if (place) route.stopInfo[key] = projectPointToRoute(place.coords, route);
-        });
+      // Derive route distances and stop progress before drawing.
+      StaticData.load();
 
+      davaoRoutes.forEach(route => {
         const polyline = L.polyline(route.coordinates, {
           color: route.color,
           weight: 5,
@@ -4757,7 +4862,9 @@
       renderTripSummary(journey);
     }
 
-    // --- ANIMATION ---
+    // ================================================================
+    // FRONTEND · ANIMATION — playback loop
+    // ================================================================
     function animate() {
       if (!isPlaying || !activeRoute) return;
 
@@ -4777,7 +4884,9 @@
       animFrameId = requestAnimationFrame(animate);
     }
 
-    // --- LOCATION ---
+    // ================================================================
+    // FRONTEND · CONTROLLER — geolocation
+    // ================================================================
     function cancelLocationRequest() {
       locateAttempt++;
       clearTimeout(locationGuard);
@@ -4889,7 +4998,9 @@
       }
     }
 
-    // --- CHAT SEARCH ---
+    // ================================================================
+    // FRONTEND · CONTROLLER — search orchestration
+    // ================================================================
     async function handleSearch(raw) {
       const query = raw.trim();
       if (!query) return;
@@ -4955,7 +5066,9 @@
       locateUser(parsed.destination);
     }
 
-    // --- EVENT LISTENERS ---
+    // ================================================================
+    // FRONTEND · CONTROLLER — event wiring
+    // ================================================================
     document.getElementById('play-btn').onclick = () => {
       isPlaying = !isPlaying;
       const btn = document.getElementById('play-btn');
@@ -5031,7 +5144,9 @@
 
     document.getElementById('locate-btn').onclick = () => locateUser();
 
-    // --- START APP ---
+    // ================================================================
+    // FRONTEND · BOOTSTRAP
+    // ================================================================
     window.onload = initMap;
   </script>
 </body>
