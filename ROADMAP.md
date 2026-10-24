@@ -232,8 +232,15 @@ The current objective is ride distance + 3 × walking distance + 4,200 per
 additional boarding. It does not minimize distance alone or establish fastest
 travel time. This investigation does not authorize planner behavior changes.
 
-- [ ] Clarify what "shortest" should mean: total distance, least walking, or
-      fastest trip, and how transfers should affect the choice.
+- [ ] Clarify what "shortest" should mean: total distance, least walking,
+      lowest fare, or fastest trip, and how transfers should affect the choice.
+- [ ] Investigate commuter choice between less walking and lower fares. The
+      user notes that some commuters accept longer walks to save money, while
+      others prefer to minimize walking. Consider a walking limit and show
+      walking distance, estimated fare, and transfers for comparable options.
+- [ ] Establish validated fare rules for each ride and transfer before claiming
+      savings from a longer walk. The current weighted score is not a peso
+      cost and does not optimize fares; preference controls remain future work.
 - [ ] Verify one-ride and multiple-ride journeys against independently reasoned
       expected results, including a nearby route that cannot connect onward,
       competing boarding points, road detours, and unsupported destinations.
