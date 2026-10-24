@@ -220,6 +220,30 @@ is proportional to distance rather than leg type, and toggling the walk display
 restarts playback from the origin.
 
 ## Boarding points and route finding
+
+### Planner correctness: gray area for the next handover
+
+User priority recorded October 24, 2026: verify that the planner finds the
+shortest practical complete journey from the user's starting point to the
+destination, including walking to a suitable boarding point and taking multiple
+jeep rides when needed. The boarding choice must account for the onward trip.
+This remains unresolved; existing examples do not prove optimal journeys.
+The current objective is ride distance + 3 × walking distance + 4,200 per
+additional boarding. It does not minimize distance alone or establish fastest
+travel time. This investigation does not authorize planner behavior changes.
+
+- [ ] Clarify what "shortest" should mean: total distance, least walking, or
+      fastest trip, and how transfers should affect the choice.
+- [ ] Verify one-ride and multiple-ride journeys against independently reasoned
+      expected results, including a nearby route that cannot connect onward,
+      competing boarding points, road detours, and unsupported destinations.
+- [ ] Audit whether sparse transfer points, access-point generation, and the
+      three-itinerary shortlist can exclude a better complete journey.
+- [ ] Record expected versus actual results and distinguish algorithm limits
+      from incomplete route data, assumed directions, and unverified boarding.
+
+### Existing progress and remaining work
+
 - [x] Consider nearby points along mapped jeep route lines when choosing the
       initial boarding point, rather than requiring a walk to a named landmark.
 - [x] Compare short direct walks with transit and remove landmark detours from
