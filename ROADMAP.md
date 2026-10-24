@@ -139,18 +139,21 @@ static waypoint markers alone do not fulfill this goal.
       ordered tagged waypoints, and connecting walk/ride legs with geometry.
       `buildJourney()` now normalizes a planned trip into this result, and the
       map and instructions read it instead of re-deriving the boundaries.
-- [ ] Animate access walking, every jeep ride and transfer, and final walking
+- [x] Animate access walking, every jeep ride and transfer, and final walking
       to the destination in sequence, using the geometry of each trip leg.
-- [ ] Change the moving marker between walking and jeep representations at
+- [x] Change the moving marker between walking and jeep representations at
       boarding/alighting points without jumps between disconnected paths.
-- [ ] Extend play/pause, speed, follow-camera, and the progress slider across
+- [x] Extend play/pause, speed, follow-camera, and the progress slider across
       the complete journey; preserve standalone route playback.
-- [ ] Verify walking-only, walk–ride–walk, and multi-ride journeys, including
+- [x] Verify walking-only, walk–ride–walk, and multi-ride journeys, including
       scrubbing across mode changes and reaching the destination.
 
-Current trip playback covers only the first jeep ride. Whole-journey playback
-is not implemented yet. The journey result and its static waypoint markers are
-in place; wiring every leg into the playback controls is the remaining step.
+`PlaybackTrack` stitches the journey legs into one distance-ordered path, and the
+animation resolves progress through it, so the marker crosses from the end of one
+leg to the start of the next without re-deriving boundaries. `pointAt()` is also
+what the progress slider uses, so scrubbing and playing agree. Trip playback time
+is proportional to distance rather than leg type, and toggling the walk display
+restarts playback from the origin.
 
 ## Boarding points and route finding
 - [x] Consider nearby points along mapped jeep route lines when choosing the

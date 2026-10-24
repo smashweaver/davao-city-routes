@@ -128,6 +128,62 @@ async def check(browser_type, url):
         assert await page.locator('.journey-badge.is-alight').count() == 1
         print('PASS: a shared transfer is marked once and names both services', flush=True)
 
+        # Playback spans the whole journey: the track mirrors every leg in order,
+        # progress resolves to the right point, and scrubbing switches the marker
+        # between the pedestrian and jeep forms.
+        result = await page.evaluate('''() => {
+          const journey = currentJourney;
+          const track = PlaybackTrack.fromJourney(journey);
+          const at = t => PlaybackTrack.pointAt(track, t);
+          const first = at(0), middle = at(0.5), last = at(1);
+          const markerText = () => playbackMarker.getElement().textContent.trim();
+          const scrub = (segment, fraction) => {
+            const progress = (segment.start + segment.distance * fraction) / track.distance;
+            const bar = document.getElementById('progress-bar');
+            bar.value = progress * 100;
+            bar.dispatchEvent(new Event('input', {bubbles: true}));
+            // A range input snaps to its step, so compare against the value it kept.
+            const expected = PlaybackTrack.pointAt(track, Number(bar.value) / 100).point;
+            const actual = playbackMarker.getLatLng();
+            return {key: playbackMarkerKey, text: markerText(),
+              error: Math.hypot(actual.lat - expected[0], actual.lng - expected[1])};
+          };
+          const walkSegment = track.segments.find(s => s.type === 'walk' && s.distance > 0);
+          const rideSegment = track.segments.find(s => s.type === 'ride' && s.distance > 0);
+          return {
+            legTypes: journey.legs.map(l => l.type),
+            trackTypes: track.segments.map(s => s.type),
+            total: track.distance,
+            sum: track.segments.reduce((sum, s) => sum + s.distance, 0),
+            start: first.point, end: last.point,
+            origin: [journey.origin.lat, journey.origin.lng],
+            destination: [journey.destination.lat, journey.destination.lng],
+            middleType: middle.segment.type,
+            walk: walkSegment ? scrub(walkSegment, 0.5) : null,
+            ride: rideSegment ? scrub(rideSegment, 0.5) : null
+          };
+        }''')
+        assert result['trackTypes'] == result['legTypes'], result
+        assert result['total'] > 0 and abs(result['total'] - result['sum']) < 0.01, result
+        assert result['start'] == result['origin'] and result['end'] == result['destination'], result
+        assert result['middleType'] in ('walk', 'ride'), result
+        assert result['walk']['key'] == 'walk' and '\U0001f6b6' in result['walk']['text'], result
+        assert result['ride']['key'].startswith('ride:') and '\U0001f68c' in result['ride']['text'], result
+        assert result['walk']['error'] < 1e-9 and result['ride']['error'] < 1e-9, result
+
+        await page.evaluate('''() => {
+          const bar = document.getElementById('progress-bar');
+          bar.value = 0;
+          bar.dispatchEvent(new Event('input', {bubbles: true}));
+        }''')
+        await page.locator('#play-btn').click()
+        await page.wait_for_timeout(350)
+        advanced = await page.evaluate('animProgress')
+        await page.locator('#play-btn').click()
+        assert advanced > 0, advanced
+        assert await page.evaluate('isPlaying') is False
+        print('PASS: playback covers every walk and ride, switches markers, and animates', flush=True)
+
         # Approximate Flores Village area, not the user's stored location or a
         # claim about a designated stop. The nearby road is on Toril/Mintal lines.
         result = await page.evaluate('''async () => {

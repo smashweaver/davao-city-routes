@@ -141,6 +141,7 @@
     .key-line { display: inline-block; width: 17px; border-top: 3px solid #d99922; border-radius: 2px; }
     .key-walk { border-top: 2px dashed #94a3b8; }
     .jeep-icon { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 2px solid white; border-radius: 50%; box-shadow: 0 3px 10px #153b3540; font-size: 14px; }
+    .jeep-icon.is-walk { background-color: #0f766e; }
     .journey-marker { background: none; border: 0; }
     .journey-badge { display: inline-flex; align-items: center; transform: translate(-50%, -150%); padding: 2px 7px; border: 1.5px solid #fffdf5; border-radius: 999px; color: #fffdf5; font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; box-shadow: 0 2px 7px #153b3550; }
     .journey-badge.is-board { background: #1f7a4d; }
@@ -3292,7 +3293,8 @@
     // ================================================================
     let map;
     let polylineLayers = {};
-    let jeepMarker = null;
+    let playbackMarker = null;
+    let playbackMarkerKey = null;
     let originMarker = null;
     let destinationMarker = null;
     let tripLayer = null;
@@ -3302,11 +3304,11 @@
     let currentJourney = null;   // renderer-ready journey result (buildJourney output)
     let tripPlanSequence = 0;
     let walkMode = 'roads'; // 'straight' | 'roads'
-    let animProgress = 0; // 0 to 1 within the current animation range
+    let animProgress = 0; // 0 to 1 across the whole playback track
     let isPlaying = false;
     let animSpeed = 0.0008;
     let animFrameId = null;
-    let animationRange = { start: 0, end: 1 };
+    let playbackTrack = null;
 
     let userLocation = null; // last GPS or typed origin
     let pendingDestination = null;
@@ -3528,13 +3530,33 @@
       });
     }
 
-    function setJeepMarker(coord, color) {
-      if (!jeepMarker) {
-        jeepMarker = L.marker(coord, { icon: createJeepIcon(color), bubblingMouseEvents: true }).addTo(map);
-      } else {
-        jeepMarker.setIcon(createJeepIcon(color));
-        jeepMarker.setLatLng(coord);
+    function createWalkIcon() {
+      return L.divIcon({
+        html: '<div class="jeep-icon is-walk">🚶</div>',
+        className: '',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+    }
+
+    // One marker plays the whole journey: a pedestrian while walking, a jeep in
+    // the route colour while riding.
+    function setPlaybackMarker(coord, segment) {
+      const isWalk = !segment || segment.type !== 'ride';
+      const color = (!isWalk && segment.color) || '#0f766e';
+      const key = isWalk ? 'walk' : `ride:${color}`;
+      const icon = isWalk ? createWalkIcon() : createJeepIcon(color);
+
+      if (!playbackMarker) {
+        playbackMarker = L.marker(coord, { icon, bubblingMouseEvents: true }).addTo(map);
+        playbackMarkerKey = key;
+        return;
       }
+      if (playbackMarkerKey !== key) {
+        playbackMarker.setIcon(icon);
+        playbackMarkerKey = key;
+      }
+      playbackMarker.setLatLng(coord);
     }
 
     const journeyWaypointStyles = {
@@ -4576,6 +4598,62 @@
       return JourneyBuilder.build(trip);
     }
 
+    // Playback needs one continuous path across walking and riding. PlaybackTrack
+    // stitches the journey legs into distance-ordered segments and resolves any
+    // progress value (0..1 of the whole trip) to a point plus the leg type there.
+    // Time follows distance, so a long walk and a short walk each get their share
+    // of the progress bar.
+    const PlaybackTrack = {
+      fromJourney(journey) {
+        const segments = [];
+        let start = 0;
+        (journey.legs || []).forEach(leg => {
+          const path = (leg.path && leg.path.length > 1)
+            ? leg.path
+            : [[leg.from.lat, leg.from.lng], [leg.to.lat, leg.to.lng]];
+          const cumulative = buildCumulativeDistances(path);
+          const distance = cumulative[cumulative.length - 1] || 0;
+          segments.push({
+            type: leg.type,
+            path,
+            cumulative,
+            distance,
+            start,
+            end: start + distance,
+            color: leg.type === 'ride' ? (leg.routeColor || (leg.route && leg.route.color)) : null,
+            leg
+          });
+          start += distance;
+        });
+        return { segments, distance: start };
+      },
+
+      // Route exploration still plays a single whole route.
+      fromRoute(route) {
+        const cumulative = route.cumulative || buildCumulativeDistances(route.coordinates);
+        const distance = cumulative[cumulative.length - 1] || 0;
+        return {
+          segments: [{ type: 'ride', path: route.coordinates, cumulative, distance,
+            start: 0, end: distance, color: route.color, route }],
+          distance
+        };
+      },
+
+      pointAt(track, progress) {
+        if (!track || !track.segments.length) return null;
+        const t = Math.min(Math.max(progress, 0), 1);
+        const target = t * track.distance;
+        let segment = track.segments[track.segments.length - 1];
+        for (const candidate of track.segments) {
+          if (candidate.distance > 0 && target <= candidate.end) { segment = candidate; break; }
+        }
+        const local = segment.distance
+          ? Math.min(Math.max((target - segment.start) / segment.distance, 0), 1)
+          : 0;
+        return { point: interpolatePath(segment.path, segment.cumulative, local), segment };
+      }
+    };
+
     // ================================================================
     // FRONTEND · PANEL VIEW — route list and written trip steps
     // ================================================================
@@ -4724,7 +4802,8 @@
       currentJourney = null;
       if (tripLayer) tripLayer.clearLayers();
       clearDestinationMarker();
-      animationRange = { start: 0, end: 1 };
+      playbackTrack = null;
+      playbackMarkerKey = null;
       animProgress = 0;
       document.getElementById('progress-bar').value = 0;
     }
@@ -4739,9 +4818,10 @@
       btn.innerText = '\u25b6 Play';
       btn.className = 'play-button';
 
-      if (jeepMarker) {
-        map.removeLayer(jeepMarker);
-        jeepMarker = null;
+      if (playbackMarker) {
+        map.removeLayer(playbackMarker);
+        playbackMarker = null;
+        playbackMarkerKey = null;
       }
 
       Object.values(polylineLayers).forEach(layer => layer.setStyle({ opacity: 0.6, weight: 5 }));
@@ -4754,7 +4834,8 @@
 
       activeRoute = route;
       animProgress = 0;
-      animationRange = { start: 0, end: 1 };
+      playbackTrack = PlaybackTrack.fromRoute(route);
+      playbackMarkerKey = null;
 
       Object.keys(polylineLayers).forEach(id => {
         if (id === route.id) {
@@ -4768,7 +4849,7 @@
       document.getElementById('active-route-name').innerText = route.name;
       document.getElementById('progress-bar').value = 0;
 
-      setJeepMarker(route.coordinates[0], route.color);
+      setPlaybackMarker(route.coordinates[0], { type: 'ride', color: route.color });
       map.fitBounds(polylineLayers[route.id].getBounds(), { padding: [50, 50] });
       renderRouteList(davaoRoutes);
     }
@@ -4843,19 +4924,19 @@
         paddingBottomRight: [compact ? labelSize.width + 45 : 100, 35]
       });
 
-      // Full multi-leg playback is still pending: this plays the first ride only.
-      const rides = journey.legs.filter(leg => leg.type === 'ride');
-      if (rides.length > 0) {
-        const first = rides[0];
-        activeRoute = first.route;
-        animationRange = { start: first.fromProgress, end: first.toProgress };
-        animProgress = 0;
-        const startPoint = interpolatePath(activeRoute.coordinates, activeRoute.cumulative, first.fromProgress);
-        setJeepMarker(startPoint, activeRoute.color);
-        document.getElementById('progress-bar').value = 0;
-      } else {
-        activeRoute = null;
-        animationRange = { start: 0, end: 0 };
+      // One continuous track spans every walk and ride, so playback follows the
+      // complete trip and the marker switches between pedestrian and jeep.
+      activeRoute = null;
+      playbackTrack = PlaybackTrack.fromJourney(journey);
+      playbackMarkerKey = null;
+      animProgress = 0;
+      document.getElementById('progress-bar').value = 0;
+      const firstFrame = PlaybackTrack.pointAt(playbackTrack, 0);
+      if (firstFrame) {
+        setPlaybackMarker(firstFrame.point, firstFrame.segment);
+      } else if (playbackMarker) {
+        map.removeLayer(playbackMarker);
+        playbackMarker = null;
       }
 
       document.getElementById('active-route-name').innerText = `Trip to ${journey.destination.label}`;
@@ -4865,20 +4946,24 @@
     // ================================================================
     // FRONTEND · ANIMATION — playback loop
     // ================================================================
+    function renderPlayback(progress) {
+      const frame = PlaybackTrack.pointAt(playbackTrack, progress);
+      if (!frame) return null;
+      setPlaybackMarker(frame.point, frame.segment);
+      return frame;
+    }
+
     function animate() {
-      if (!isPlaying || !activeRoute) return;
+      if (!isPlaying || !playbackTrack) return;
 
       animProgress += animSpeed;
       if (animProgress >= 1) animProgress = 0;
 
       document.getElementById('progress-bar').value = animProgress * 100;
 
-      const pathProgress = animationRange.start + (animationRange.end - animationRange.start) * animProgress;
-      const currentPoint = interpolatePath(activeRoute.coordinates, activeRoute.cumulative, pathProgress);
-      jeepMarker.setLatLng(currentPoint);
-
-      if (document.getElementById('follow-cam').checked) {
-        map.panTo(currentPoint, { animate: false });
+      const frame = renderPlayback(animProgress);
+      if (frame && document.getElementById('follow-cam').checked) {
+        map.panTo(frame.point, { animate: false });
       }
 
       animFrameId = requestAnimationFrame(animate);
@@ -5072,7 +5157,7 @@
     document.getElementById('play-btn').onclick = () => {
       isPlaying = !isPlaying;
       const btn = document.getElementById('play-btn');
-      if (isPlaying && activeRoute) {
+      if (isPlaying && playbackTrack) {
         btn.innerText = '\u23f8 Pause';
         btn.className = 'play-button is-playing';
         animate();
@@ -5086,11 +5171,7 @@
 
     document.getElementById('progress-bar').oninput = (e) => {
       animProgress = e.target.value / 100;
-      if (activeRoute && jeepMarker) {
-        const pathProgress = animationRange.start + (animationRange.end - animationRange.start) * animProgress;
-        const point = interpolatePath(activeRoute.coordinates, activeRoute.cumulative, pathProgress);
-        jeepMarker.setLatLng(point);
-      }
+      renderPlayback(animProgress);
     };
 
     document.querySelectorAll('.speed-btn').forEach(btn => {

@@ -84,7 +84,9 @@ uv run --with playwright python tools/planner/regression_checks.py
 
 This runs Playwright Firefox and installed Google Chrome. Both need Leaflet's
 CDN; map tiles and routing responses are mocked. It covers direct walks,
-estimated access along jeep route lines, coordinate input, and road-detour
-ranking. Use `--browsers firefox` or `--browsers chromium` to select one browser,
-or `--url http://127.0.0.1:8123/` for another app server. See
+estimated access along jeep route lines, coordinate input, road-detour ranking,
+the ordered journey result and its markers, and whole-journey playback (leg
+order, marker switching, scrubbing, and the advancing animation). Use
+`--browsers firefox` or `--browsers chromium` to select one browser, or
+`--url http://127.0.0.1:8123/` for another app server. See
 [`../geolocation/README.md`](../geolocation/README.md) for browser setup.

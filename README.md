@@ -11,8 +11,8 @@ milestones are recorded in [`ROADMAP.md`](ROADMAP.md#product-direction).
 Journeys are normalized into one ordered result — origin, tagged waypoints
 (board, alight, transfer), and connected walk/ride legs with full geometry — so
 the map, the instructions, and the animation read the same boundaries. Static
-BOARD and GET OFF markers appear for every jeep ride. Playback still animates
-only the first jeep ride; full-journey animation remains planned.
+BOARD and GET OFF markers appear for every jeep ride, and playback follows the
+complete trip: walking, every ride and transfer, then walking to the destination.
 
 The app ships five verified routes, a simple trip planner, and a map with an
 animated jeepney marker.
@@ -46,7 +46,10 @@ animated jeepney marker.
   jeep ride, including a single-ride trip, plus one TRANSFER badge at a shared
   transfer point. Walking stays dashed; rides stay solid.
 - **Route animation** — play/pause, scrub, speed control (1x/2x/5x), and a
-  follow-camera option that animates a jeepney marker along the route.
+  follow-camera option. Route exploration animates the selected route; a planned
+  trip animates end to end, with a pedestrian marker while walking and a jeep in
+  the route colour while riding. The progress bar spans the whole journey, and
+  time follows distance so each leg gets its share.
 - **Geolocation** — "My Location" watches for a fix with reported accuracy of
   500 m or better, stops after accepting it, and offers a manual fallback if
   location is unavailable or remains too broad for 12 seconds.
@@ -84,7 +87,7 @@ reach earlier ones only through the small APIs below.
 | Backend | `PLACES` | Query parsing and landmark resolution. |
 | Backend | `SERVICES` | Geocoding (Google Places, Nominatim) and walk routing (OSRM). |
 | Backend | `PLANNER` | Stop graph, Dijkstra search, candidate ranking, `buildTrip()`. |
-| Backend | `JOURNEY` | `WaypointFactory` (one tagged waypoint) and `JourneyBuilder` (ordered waypoints + walk/ride legs). |
+| Backend | `JOURNEY` | `WaypointFactory` (one tagged waypoint), `JourneyBuilder` (ordered waypoints + walk/ride legs), and `PlaybackTrack` (one distance-ordered path for playback). |
 | Frontend | `PANEL VIEW` | Route list and written trip steps. |
 | Frontend | `MAP VIEW` | Leaflet layers, markers, and trip drawing. |
 | Frontend | `ANIMATION` | Playback loop. |
@@ -258,8 +261,9 @@ accepts origin, destination, boarding and alighting coordinates, router URL,
 profile, timeout, request interval, user agent, steps, and JSON output settings.
 
 - **Playwright + Firefox and Chromium/Chrome** — page-load, route-render, route
-  selection, animation, trip-planning, and mocked geolocation checks. CLI helper
-  `playwright-cli` is also available for interactive snapshots.
+  selection, animation, whole-journey playback, trip-planning, and mocked
+  geolocation checks. CLI helper `playwright-cli` is also available for
+  interactive snapshots.
 - **Firefox DevTools MCP / Chrome DevTools MCP** — browser inspection tooling;
   Firefox MCP is configured in Zed, and the optional Chrome CDP workflow is
   documented in `AGENTS.md`.
@@ -351,9 +355,6 @@ route checks on October 23).
   times. A verified pedestrian-routing provider is still needed.
 - Routes are modeled as bidirectional lines even where the real service is a
   one-way loop (notably Route 10 southbound).
-- Trip playback still animates only the first jeep ride. The ordered journey
-  result is ready for full multi-leg playback, but the controls are not yet
-  wired across walking and transfer legs.
 - Fares are indicative, not an LTFRB fare matrix.
 - The cost model may prefer a short walk plus a shorter route over a very long
   direct loop (for example `Claveria → SPMC` via Route 10 vs walk + Buhangin).

@@ -47,14 +47,14 @@ manifest. Serve with `./run.sh [port]` (default 8000). Full documentation:
 - The destination uses a separate Leaflet marker with an inline SVG flag and
   permanent label. Keep it visible while locating or reporting an unsupported
   trip, and clear it when returning to route exploration or an origin-only state.
-- The intended playback covers the full walking/jeep journey. Currently a trip
-  animates only its first ride through `activeRoute` and `animationRange`.
-  Path-intersection matching and static markers are steps toward complete
-  multi-leg animation, which remains pending; see `HANDOVER.md` and `ROADMAP.md`.
-- The intended planner output is one organized journey with origin, destination,
-  ordered tagged waypoints, and connected walk/ride paths. Map rendering and
-  playback should consume that result; the full contract is in `HANDOVER.md`
-  and remains to be implemented.
+- Playback covers the full walking/jeep journey. `PlaybackTrack` (backend
+  `JOURNEY`) stitches the journey legs into one distance-ordered path; the
+  animation and progress slider both resolve through `PlaybackTrack.pointAt()`,
+  and the marker switches between pedestrian and jeep. Route exploration plays a
+  single route via `PlaybackTrack.fromRoute()`.
+- The planner output is one organized journey with origin, destination, ordered
+  tagged waypoints, and connected walk/ride paths, built by `JourneyBuilder` and
+  read by the map, the instructions, and playback.
 
 ## Dev / verification
 
@@ -64,7 +64,7 @@ browser checks and geolocation.
 
 | Tool | Use it for |
 | --- | --- |
-| `tools/planner/regression_checks.py` | Direct walks, nearby route access, coordinate input, road-detour ranking, transfer costs, deduplication, routing fallback, and stale-plan cancellation. |
+| `tools/planner/regression_checks.py` | Direct walks, nearby route access, coordinate input, road-detour ranking, transfer costs, deduplication, routing fallback, stale-plan cancellation, journey markers, and whole-journey playback. |
 | `tools/planner/compare_walks.py` | Reusable OSRM comparison of direct, boarding-access, and alighting-egress paths; configure coordinates, router, profile, timeout, interval, user agent, steps, and JSON output through CLI parameters. See `tools/planner/README.md`. |
 | `tools/geolocation/regression_checks.py` | Mocked location ordering, cleanup, cancellation, denial, timeout, and destination preservation. |
 | `tools/geolocation/native_probe.py` | Installed Firefox's native `getCurrentPosition` provider path. |
