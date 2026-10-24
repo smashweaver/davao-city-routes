@@ -88,17 +88,16 @@ prototype routes. No complete current verified feed was established by the searc
       distinct from DC Bus and the planned DPTMP network in the acquisition audit.
 - [ ] Identify and map **Love Bus** and **Davao City Bus / DC Bus (Davao City
       Interim Bus Service)** routes alongside jeepney routes.
-- [ ] Verify each service's boarding and alighting stops, route directions,
-      operating days and hours, and current free-ride or fare rules. Record
-      official sources and the date checked before adding them to trip planning.
+- [ ] Obtain and verify official boarding/alighting stop coordinates,
+      directional geometry, operating days and time windows, transfer
+      restrictions, and current fare/free-ride rules for each service. Record
+      sources and dates checked before planner integration; permit bus boarding
+      only at verified designated stops.
 - [ ] Investigate whether the free-ride services collect commuter feedback to
       refine routes. This is a user hypothesis to verify, not an established
       explanation for the free rides.
 - [ ] Plan how bus and jeepney options, transfers, and service availability will
       appear together in search and trip results.
-- [ ] Obtain official bus stop coordinates, directional geometry, service
-      calendars/time windows, transfer restrictions, and dated fare/free-ride
-      rules. Permit bus boarding only at verified designated stops.
 - [ ] Keep proposed DPTMP routes in planned status until a dated operational
       confirmation supports including them in journey search.
 
@@ -115,9 +114,12 @@ map rendering. Requesting location has triggered the freeze both before and
 after installing GeoClue; the underlying browser/OS cause is still unconfirmed.
 
 ### Status
+
 - [x] Trigger identified: requesting browser geolocation on Linux Firefox has
       reproduced the freeze. Installing GeoClue did not resolve the report.
-- [x] Identified and fixed missing GeoClue permission agent in this session.
+- [x] Identified the missing GeoClue permission agent during investigation;
+      restored client creation temporarily. GeoClue was later removed at the
+      user's request; real-location reliability remains unresolved.
 - [x] Replaced the temporary Firefox map-only workaround with an automatic
       location watch that accepts fixes reporting accuracy of 500 m or better,
       cancels after success, and falls back after 12 seconds.
@@ -126,17 +128,19 @@ after installing GeoClue; the underlying browser/OS cause is still unconfirmed.
 
 ### Native geolocation investigation — October 24, 2026
 
-- Installed browser: Firefox 158.0.1 on Pop!_OS 24.04 / COSMIC; GeoClue 2.7.0.
+- Test environment at the time: Firefox 158.0.1 on Pop!_OS 24.04 / COSMIC;
+  GeoClue 2.7.0 before its subsequent removal.
 - Confirmed blocker: the GeoClue desktop permission agent was absent from the
   running session. A direct D-Bus `Manager.GetClient` call timed out independently
   of the app. GeoClue 2.7.0 queues client creation until an agent registers.
 - Started `/usr/libexec/geoclue-2.0/demos/agent` under the transient user service
-  `geoclue-demo-agent.service`. The same D-Bus call now succeeds in about 0.05s.
-  `/etc/xdg/autostart/geoclue-demo-agent.desktop` already exists for future logins;
-  no additional autostart file was needed.
+  `geoclue-demo-agent.service`. The same D-Bus call then succeeded in about 0.05s.
+  `/etc/xdg/autostart/geoclue-demo-agent.desktop` existed at the time;
+  no additional autostart file was needed during that investigation.
 - GeoClue was subsequently purged from the development system at the user's
   request, including its configuration and autostart entry. The session agent
-  was stopped. The Firefox direct-network-provider preference remains in place.
+  was stopped. Firefox was configured to use its direct network provider;
+  recheck profile settings before any further native-provider investigation.
 - A minimal page in the installed Firefox stayed responsive but timed out with
   the original GeoClue setup. The reported full-browser freeze has not yet been
   reproduced in this isolated test.
@@ -195,9 +199,8 @@ after installing GeoClue; the underlying browser/OS cause is still unconfirmed.
 
 ## Full-journey animation
 
-The goal is to animate the complete journey through walking and jeep-ride
-waypoints. Intersection matching provides the boarding/alighting boundaries;
-static waypoint markers alone do not fulfill this goal.
+Playback covers the complete journey through the walk/ride boundaries in the
+journey result. Further boundary refinement remains open under route finding.
 
 - [x] Return one organized journey result containing origin, destination,
       ordered tagged waypoints, and connecting walk/ride legs with geometry.
@@ -212,12 +215,9 @@ static waypoint markers alone do not fulfill this goal.
 - [x] Verify walking-only, walk–ride–walk, and multi-ride journeys, including
       scrubbing across mode changes and reaching the destination.
 
-`PlaybackTrack` stitches the journey legs into one distance-ordered path, and the
-animation resolves progress through it, so the marker crosses from the end of one
-leg to the start of the next without re-deriving boundaries. `pointAt()` is also
-what the progress slider uses, so scrubbing and playing agree. Trip playback time
-is proportional to distance rather than leg type, and toggling the walk display
-restarts playback from the origin.
+Playback time is proportional to distance rather than leg type; toggling the
+walk display restarts playback from the origin. See [README.md](README.md) for
+the playback architecture and verification details.
 
 ## Boarding points and route finding
 
@@ -232,12 +232,29 @@ The current objective is ride distance + 3 × walking distance + 4,200 per
 additional boarding. It does not minimize distance alone or establish fastest
 travel time. This investigation does not authorize planner behavior changes.
 
-- [ ] Clarify what "shortest" should mean: total distance, least walking,
-      lowest fare, or fastest trip, and how transfers should affect the choice.
-- [ ] Investigate commuter choice between less walking and lower fares. The
-      user notes that some commuters accept longer walks to save money, while
-      others prefer to minimize walking. Consider a walking limit and show
-      walking distance, estimated fare, and transfers for comparable options.
+Code trace — October 25, 2026: `shortestPath()` returns one weighted path for
+each origin/destination access-point pair. `findTripCandidates()` deduplicates
+those paths, ranks them using straight-line walking estimates, and keeps at
+most three ride itineraries. `planTrip()` then requests road paths for only
+those retained candidates and re-ranks them. Road detours therefore cannot
+rescue a route omitted by the initial shortlist, and another path for the same
+access-point pair is never compared. The saved Calinan–SM Lanang regression
+checks that a two-ride transfer is represented; it does not compare the result
+with independently enumerated alternatives or establish optimality. This is a
+source-level limitation, not yet a demonstrated wrong trip on a validated
+route network.
+
+Browser verification was attempted October 25, 2026 but could not run in this
+environment: Playwright is absent from the available Python runtime and the
+offline `uv` cache, the local server ports were not reachable, and the Firefox
+DevTools MCP process exited while listing tabs. Syntax verification and
+`git diff --check` passed; no planner behavior was exercised in this session.
+
+- [ ] Define how commuters choose between least walking, lowest fare,
+      shortest total distance, and fastest trip, including a walking limit and
+      the effect of transfers. Some accept longer walks to save money; others
+      minimize walking. Compare walking distance, estimated fare, and transfers
+      for the available options.
 - [ ] Establish validated fare rules for each ride and transfer before claiming
       savings from a longer walk. The current weighted score is not a peso
       cost and does not optimize fares; preference controls remain future work.
@@ -257,9 +274,11 @@ travel time. This investigation does not authorize planner behavior changes.
       walking-only trips.
 - [x] Compare road distances for the direct walk and shortlisted jeep options
       before choosing a trip; apply the boarding penalty only to transfers.
-- [ ] Use Turf overlap/intersection operations on existing walking and jeep
-      paths to select boarding/alighting boundaries and convert shared walking
-      sections into rides. Approved approach; implementation is still pending.
+- [ ] Investigate whether walking sections along mapped jeep routes could be
+      ridden, and refine boarding/alighting boundaries where appropriate.
+      Require sustained overlap within a tested tolerance, route identity, and
+      valid direction; a single crossing is insufficient. Keep the default
+      free of added dependencies; Turf.js is not required.
 - [x] Show static BOARD and GET OFF markers for every ride, including a single
       jeep trip; retain dashed walking links and solid ride sections.
 - [ ] Validate the Flores Village / Bangkal boarding location on the ground,
@@ -268,12 +287,15 @@ travel time. This investigation does not authorize planner behavior changes.
       barriers, crossings, and walking detours before selecting a trip.
 - [ ] Verify a pedestrian-routing provider; an OSRM URL containing `foot`
       does not establish which transport profile its server actually uses.
+- [ ] Investigate user-editable walking paths or Google Directions integration
+      as alternatives for improving walk routing.
 - [ ] Add verified boarding/alighting stops and road names along route segments;
       distinguish designated bus stops from inferred jeepney road access.
 
 ## General
+
 - [ ] Investigate bounding the map to Davao City's boundaries, including how
       panning and zooming should behave. Record the approach before implementation.
-- [ ] Persist Google Places key handling docs (already localStorage-only).
+- [x] Document Google Places key storage, API setup, billing, and referrer
+      restrictions in [README.md → Place lookup](README.md#place-lookup).
 - [ ] Add offline-capable tile/cache strategy (optional).
-- [ ] Improve walk routing (user-editable or Google Directions integration).
