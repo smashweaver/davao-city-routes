@@ -51,9 +51,28 @@
     .brand-title { font-family: Georgia, "Times New Roman", serif; font-size: 36px; font-weight: 400; line-height: 1; letter-spacing: -1.8px; }
     .brand-title span { color: var(--sun); }
     .brand-description { color: #bed0bf; font-size: 11px; margin-top: 9px; }
-    .locate-button { max-width: 145px; min-height: 38px; flex-shrink: 0; border-color: #f6c84a70; border-radius: 9px; background: #f6c84a12; color: #ffe6a0; padding: 8px 10px; font-size: 11px; font-weight: 700; }
-    .locate-button:hover { background: #f6c84a26; border-color: var(--sun); }
+    .origin-row { display: flex; gap: 6px; margin-top: 11px; }
+    .origin-row[hidden] { display: none; }
+    .origin-btn { flex: 1 1 0; min-width: 0; min-height: 31px; padding: 6px 8px; border: 1px solid #dfe3d7; border-radius: 100px; background: #f3f4eb; color: #516456; font-size: 10px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .origin-btn:hover { border-color: #839d80; background: #e6ebdc; }
+    .origin-btn[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff6d5; }
+    .origin-btn[aria-pressed="true"]:hover { background: #2b5b4a; }
+    /* While choosing, the common choice reads as the primary action. */
+    .origin-row.is-chooser .origin-btn[data-origin="gps"] { flex: 1.25 1 0; background: var(--ink); border-color: var(--ink); color: #fff6d5; }
+    .origin-row.is-chooser .origin-btn[data-origin="gps"]:hover { background: #2b5b4a; }
     .is-locating { opacity: .65; }
+    .coord-field { margin-top: 9px; }
+    .coord-field[hidden] { display: none; }
+    .coord-field .settings-save { white-space: nowrap; flex-shrink: 0; }
+    .coord-field .settings-status.is-error { color: #a74246; }
+    .hint-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+    .hint-link:hover { color: #a1640b; }
+    .hint-compact { display: none; }
+    .src-dot { display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; vertical-align: 1px; }
+    .src-dot[data-src="gps"] { background: #0ea5e9; }
+    .src-dot[data-src="pin"] { background: #1f7a4d; }
+    .src-dot[data-src="coordinates"] { background: var(--ink); }
+    .src-dot[data-src="place"] { background: #c07a12; }
     .search-panel { padding: 23px 24px 15px; border-bottom: 1px solid var(--line); flex-shrink: 0; background: #fbfaf5; }
     .search-title { display: block; font-size: 21px; font-weight: 750; letter-spacing: -.7px; margin-bottom: 13px; }
     .search-row { display: flex; gap: 8px; }
@@ -149,6 +168,10 @@
     .journey-badge.is-transfer { background: #c07a12; }
     .journey-badge.is-waypoint { background: #62705a; }
     .destination-marker { background: none; border: 0; }
+    .origin-pin { background: none; border: 0; }
+    .origin-pin span { display: block; width: 18px; height: 18px; border-radius: 50%; background: #0ea5e9; box-shadow: 0 0 0 4px #38bdf8, 0 2px 6px #153b3555; cursor: grab; }
+    .origin-pin.is-dragging span { cursor: grabbing; box-shadow: 0 0 0 4px #38bdf8, 0 0 0 12px #0ea5e933; }
+    .map-panel.is-picking #map { cursor: crosshair; }
     .destination-marker svg { display: block; width: 44px; height: 52px; filter: drop-shadow(0 3px 5px #153b3545); }
     .destination-label.leaflet-tooltip { width: max-content; max-width: 190px; padding: 9px 12px; border: 1px solid #d4dbc7; border-radius: 9px; background: #fffdf5; color: var(--ink); box-shadow: 0 3px 14px #153b3520; white-space: normal; text-align: center; }
     .destination-label.leaflet-tooltip-top::before { border-top-color: #fffdf5; }
@@ -174,12 +197,16 @@
       .brand-header { padding: 12px 17px; }
       .brand-topline, .brand-description { display: none; }
       .brand-title { font-size: 27px; letter-spacing: -1px; }
-      .locate-button { max-width: 150px; min-height: 33px; font-size: 10px; padding: 7px 9px; }
+      .origin-btn { min-height: 29px; font-size: 9px; padding: 5px 6px; }
       .search-panel { padding: 12px 17px 10px; }
       .search-title { font-size: 17px; margin-bottom: 9px; }
       .search-input { font-size: 12px; padding: 10px; }
       .preset-list { margin-top: 8px; }
       .search-hint { display: none; }
+      /* The starting-point line carries the instruction and the cancel action, so it stays. */
+      .search-hint.is-status { display: block; margin-top: 8px; }
+      .search-hint.is-status .hint-full { display: none; }
+      .search-hint.is-status .hint-compact { display: inline; }
       .search-settings { margin-top: 7px; }
       .routes-heading { padding: 10px 17px 8px; }
       .route-list { padding: 0 10px 12px; }
@@ -200,6 +227,8 @@
     }
     @media (max-width: 767px) {
       .app-shell:has(.search-settings[open]) .map-panel { flex-basis: 24%; min-height: 150px; }
+      /* Aiming a point needs room; the map takes more of the phone while picking. */
+      .app-shell:has(.map-panel.is-picking) .map-panel { flex-basis: 55%; min-height: 220px; }
     }
     @media (min-width: 768px) and (max-height: 600px) {
       .sidebar { overflow-y: auto; }
@@ -221,7 +250,6 @@
         <div class="brand-topline"><span class="eyebrow">Davao City · Philippines</span><span class="city-stamp">LOCAL ROUTE GUIDE</span></div>
         <div class="brand-row">
           <div><h1 class="brand-title">Jeep routes<span>.</span></h1><p class="brand-description">A little local knowledge. A better way around.</p></div>
-          <button id="locate-btn" class="locate-button" type="button">⌖ My Location</button>
         </div>
       </header>
 
@@ -231,6 +259,18 @@
           <input type="text" id="chat-input" class="search-input" placeholder="A place, lat, lng, or from Matina to Abreeza" autocomplete="off" />
           <button id="search-btn" class="search-button" type="button">Find route ↗</button>
         </div>
+        <div class="origin-row" id="origin-row" role="group" aria-label="Starting point" hidden>
+          <button id="origin-gps" class="origin-btn" data-origin="gps" type="button" aria-pressed="false">My location</button>
+          <button id="origin-pin" class="origin-btn" data-origin="pin" type="button" aria-pressed="false">Drop a pin</button>
+          <button id="origin-coord" class="origin-btn" data-origin="coord" type="button" aria-pressed="false">Coordinates</button>
+        </div>
+        <div class="coord-field" id="coord-field" hidden>
+          <div class="settings-row">
+            <input id="origin-coord-input" class="settings-input" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="7.064000, 125.609000" aria-label="Starting latitude, longitude" />
+            <button id="origin-coord-apply" class="settings-save" type="button" disabled>Use point</button>
+          </div>
+          <p id="origin-coord-status" class="settings-status">Latitude, longitude in decimal degrees.</p>
+        </div>
         <div class="preset-list">
           <span class="preset-label">Try</span>
           <button class="preset-tag" data-query="Abreeza" type="button">Abreeza</button>
@@ -238,7 +278,7 @@
           <button class="preset-tag" data-query="Roxas Night Market" type="button">Roxas Market</button>
           <button class="preset-tag" data-query="Toril" type="button">Toril</button>
         </div>
-        <p class="search-hint">Enter a place or latitude, longitude. Add your starting point with “from”.</p>
+        <p class="search-hint" id="search-hint"></p>
         <details class="search-settings">
           <summary>Search settings</summary>
           <div class="settings-row">
@@ -3310,9 +3350,12 @@
     let animFrameId = null;
     let playbackTrack = null;
 
-    let userLocation = null; // last GPS or typed origin
+    let userLocation = null;   // the chosen starting point
+    let originSource = null;   // 'gps' | 'pin' | 'coordinates' | 'place'
+    let chooserOpen = false;   // the three starting-point choices are showing
+    let pinArmed = false;      // the next map click sets the starting point
+    let coordOpen = false;     // the coordinate field is showing
     let pendingDestination = null;
-    let awaitingMapPick = false;
     let locateAttempt = 0;
     let locationWatchId = null;
     let locationGuard = null;
@@ -3577,15 +3620,32 @@
       });
     }
 
-    function setOriginMarker(point) {
+    function setOriginMarker(point, { draggable = true } = {}) {
       const coord = [point.lat, point.lng];
       const label = point.label || 'Your location';
       if (!originMarker) {
-        originMarker = L.circleMarker(coord, {
-          radius: 9, color: '#38bdf8', weight: 4, fillColor: '#0ea5e9', fillOpacity: 1
+        originMarker = L.marker(coord, {
+          draggable,
+          zIndexOffset: 600,
+          icon: L.divIcon({
+            className: 'origin-pin',
+            html: '<span></span>',
+            iconSize: [18, 18],
+            iconAnchor: [9, 9]
+          })
         }).addTo(map).bindTooltip(label);
+        originMarker.on('dragstart', () => {
+          stopPlayback();
+          originMarker.getElement().classList.add('is-dragging');
+        });
+        originMarker.on('dragend', event => {
+          originMarker.getElement().classList.remove('is-dragging');
+          const { lat, lng } = event.target.getLatLng();
+          setOrigin({ lat, lng, label: 'Dropped pin' }, 'pin', { focus: false });
+        });
       } else {
         originMarker.setLatLng(coord);
+        if (draggable) originMarker.dragging.enable(); else originMarker.dragging.disable();
         originMarker.unbindTooltip().bindTooltip(label);
       }
     }
@@ -3631,7 +3691,8 @@
     // BACKEND · PLACES — query and place parsing
     // ================================================================
     function parseCoordinate(text) {
-      const match = text.trim().match(/^([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*,\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))$/);
+      const match = text.trim().match(/^([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*,?\s+([+-]?(?:\d+(?:\.\d+)?|\.\d+))$/)
+        || text.trim().match(/^([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*,\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))$/);
       if (!match) return null;
       const lat = Number(match[1]);
       const lng = Number(match[2]);
@@ -3689,6 +3750,10 @@
 
       m = q.match(/\bfrom\s+(.+?)\s+to\s+(.+)$/);
       if (m) return build(m[1], m[2]);
+
+      m = q.match(/\bfrom\s+(.+)$/);
+      // "from 7.064, 125.609" alone sets a starting point; a bare pair is a destination.
+      if (m && parseCoordinate(m[1])) return build(m[1], null);
 
       m = q.match(/\b(?:go(?:ing)?\s+to|to)\s+(.+?)\s+from\s+(.+)$/);
       if (m) return build(m[2], m[1]);
@@ -3931,19 +3996,12 @@
       };
 
       if (role === 'origin') {
-        userLocation = chosen;
-        setOriginMarker(chosen);
-        map.setView([chosen.lat, chosen.lng], 14);
-        if (parsed.destination) {
-          planTrip(chosen, parsed.destination);
-        } else {
-          showIdleState(`Starting point set to <b>${escapeHtml(chosen.label)}</b>. Where do you want to go?`);
-        }
+        setOrigin(chosen, 'place', { replan: Boolean(parsed.destination) });
         return;
       }
 
       if (parsed.origin) {
-        userLocation = parsed.origin;
+        setOrigin(parsed.origin, originSourceFor(parsed.originText), { focus: false, quiet: true });
         planTrip(parsed.origin, chosen);
         return;
       }
@@ -4795,6 +4853,7 @@
       tripLayer = L.layerGroup().addTo(map);
       selectRoute(davaoRoutes[0]);
       renderRouteList(davaoRoutes, '<b>Choose a route</b>, or tell me where you\'re going.');
+      syncOriginUI();
     }
 
     function clearTripDisplay() {
@@ -4855,13 +4914,7 @@
     }
 
     function showTrip(trip) {
-      if (isPlaying) {
-        isPlaying = false;
-        cancelAnimationFrame(animFrameId);
-        const btn = document.getElementById('play-btn');
-        btn.innerText = '\u25b6 Play';
-        btn.className = 'play-button';
-      }
+      stopPlayback();
 
       // One canonical result feeds the lines, the markers, and the instructions.
       const journey = buildJourney(trip);
@@ -4953,6 +5006,15 @@
       return frame;
     }
 
+    function stopPlayback() {
+      if (!isPlaying) return;
+      isPlaying = false;
+      cancelAnimationFrame(animFrameId);
+      const btn = document.getElementById('play-btn');
+      btn.innerText = '\u25b6 Play';
+      btn.className = 'play-button';
+    }
+
     function animate() {
       if (!isPlaying || !playbackTrack) return;
 
@@ -4982,65 +5044,136 @@
       }
     }
 
-    function pickUserLocation(e) {
-      if (!awaitingMapPick) return;
-      awaitingMapPick = false;
-      cancelLocationRequest();
-      const target = pendingDestination;
-      pendingDestination = null;
-      map.closePopup();
-      applyUserLocation(e.latlng.lat, e.latlng.lng, target);
+    // ---- starting point: one state, three ways to set it ----
+    const ORIGIN_TEACHING = 'Enter a place or latitude, longitude. Add your starting point with “from”.';
+
+    function hintLink(id, text) {
+      return `<button class="hint-link" type="button" id="${id}">${text}</button>`;
+    }
+
+    function defaultOriginLabel(source) {
+      if (source === 'gps') return 'My location';
+      if (source === 'pin') return 'Dropped pin';
+      if (source === 'coordinates') return 'Coordinate point';
+      return 'Starting point';
+    }
+
+    // A typed decimal pair is a coordinate point even though it arrives through
+    // the same text parsing as a landmark name.
+    function originSourceFor(text, fallback = 'place') {
+      return text && parseCoordinate(text) ? 'coordinates' : fallback;
     }
 
     function restoreLocateButton() {
-      const btn = document.getElementById('locate-btn');
+      const btn = document.getElementById('origin-gps');
       btn.disabled = false;
       btn.classList.remove('is-locating');
-      btn.textContent = '⌖ My Location';
+      btn.textContent = 'My location';
     }
 
-    function applyUserLocation(lat, lng, destination, accuracy = null) {
-      userLocation = { lat, lng, label: 'My Location' };
-      if (Number.isFinite(accuracy)) userLocation.accuracy = accuracy;
-      setOriginMarker(userLocation);
-      map.setView([lat, lng], 14);
-      restoreLocateButton();
-      if (destination) {
-        planTrip(userLocation, destination);
+    // The hint line the app already owned now carries the whole starting-point
+    // state: what is set, how to change it, and how to cancel a mode.
+    function syncOriginUI() {
+      const row = document.getElementById('origin-row');
+      const field = document.getElementById('coord-field');
+      const hint = document.getElementById('search-hint');
+      const panel = document.querySelector('.map-panel');
+
+      row.hidden = !(chooserOpen && !pinArmed && !coordOpen);
+      row.classList.toggle('is-chooser', chooserOpen && !userLocation);
+      field.hidden = !coordOpen;
+      panel.classList.toggle('is-picking', pinArmed);
+      hint.classList.add('is-status');
+
+      document.getElementById('origin-gps').setAttribute('aria-pressed', String(originSource === 'gps' && !pinArmed && !coordOpen));
+      document.getElementById('origin-pin').setAttribute('aria-pressed', String(pinArmed || originSource === 'pin'));
+      document.getElementById('origin-coord').setAttribute('aria-pressed', String(coordOpen || originSource === 'coordinates'));
+
+      if (pinArmed) {
+        hint.innerHTML = `Tap anywhere on the map to set your starting point · ${hintLink('hint-cancel-pin', 'cancel')}`;
+        document.getElementById('hint-cancel-pin').onclick = () => { pinArmed = false; syncOriginUI(); };
+      } else if (coordOpen) {
+        hint.innerHTML = `Enter your starting coordinates below · ${hintLink('hint-cancel-coord', 'cancel')}`;
+        document.getElementById('hint-cancel-coord').onclick = () => { coordOpen = false; syncOriginUI(); };
+      } else if (chooserOpen) {
+        hint.innerHTML = `Choose how to set your starting point · ${hintLink('hint-cancel-chooser', 'cancel')}`;
+        document.getElementById('hint-cancel-chooser').onclick = () => { chooserOpen = false; syncOriginUI(); };
+      } else if (userLocation) {
+        hint.innerHTML = `<span class="src-dot" data-src="${originSource}"></span>Starting from <b>${escapeHtml(userLocation.label)}</b> · ${hintLink('hint-change', 'change')}`;
+        document.getElementById('hint-change').onclick = () => { chooserOpen = true; syncOriginUI(); };
       } else {
-        const detail = Number.isFinite(accuracy) ? ` (reported accuracy: about ${Math.round(accuracy)} m)` : '';
-        showIdleState(`Location set${detail}. Where do you want to go?`);
+        // The compact form keeps the entry point reachable on phones, where the
+        // long teaching sentence is hidden.
+        hint.innerHTML = `<span class="hint-full">${ORIGIN_TEACHING} ${hintLink('hint-set', 'Set starting point')}</span>`
+          + `<span class="hint-compact">${hintLink('hint-set-compact', 'Set starting point')} · or type a place</span>`;
+        const openChooser = () => { chooserOpen = true; syncOriginUI(); };
+        document.getElementById('hint-set').onclick = openChooser;
+        document.getElementById('hint-set-compact').onclick = openChooser;
       }
+    }
+
+    function setOrigin(point, source, { focus = true, replan = true, quiet = false } = {}) {
+      cancelLocationRequest();
+      pinArmed = false;
+      coordOpen = false;
+      chooserOpen = false;
+      originSource = source;
+      userLocation = { lat: point.lat, lng: point.lng, label: point.label || defaultOriginLabel(source) };
+      // The planner snaps a named landmark to its own boarding point, so the key
+      // must survive every origin path.
+      if (point.key) userLocation.key = point.key;
+      if (Number.isFinite(point.accuracy)) userLocation.accuracy = point.accuracy;
+      setOriginMarker(userLocation, { draggable: true });
+      restoreLocateButton();
+      if (focus) map.setView([point.lat, point.lng], 14);
+      syncOriginUI();
+
+      const target = pendingDestination || (currentJourney && currentJourney.destination) || null;
+      pendingDestination = null;
+      if (replan && target) {
+        planTrip(userLocation, target);
+      } else if (!quiet) {
+        showIdleState(`Starting point set to <b>${escapeHtml(userLocation.label)}</b>. Where do you want to go?`);
+      }
+    }
+
+    function pickUserLocation(event) {
+      if (!pinArmed) return;
+      map.closePopup();
+      setOrigin({ lat: event.latlng.lat, lng: event.latlng.lng, label: 'Dropped pin' }, 'pin', { focus: false });
     }
 
     // Manual fallback when automatic location is unavailable or too imprecise.
     function promptMapPick(destination, message = 'I couldn\'t read your location. <b>Tap your location on the map</b>, or type a starting point like <b>from Matina to Abreeza</b>.') {
-      awaitingMapPick = true;
       pendingDestination = destination;
-      const btn = document.getElementById('locate-btn');
-      btn.disabled = true;
-      btn.classList.add('is-locating');
-      btn.textContent = '🖱️ Tap your spot on the map';
-      renderRouteList(davaoRoutes, message);
+      coordOpen = false;
+      chooserOpen = false;
+      pinArmed = true;
+      restoreLocateButton();
+      syncOriginUI();
+      if (message) renderRouteList(davaoRoutes, message);
     }
 
     function locateUser(destination = null) {
       tripPlanSequence++;
       cancelLocationRequest();
+      pinArmed = false;
+      coordOpen = false;
+      chooserOpen = false;
       if (destination) setDestinationMarker(destination, true);
+      pendingDestination = destination;
+      syncOriginUI();
       const attempt = locateAttempt;
-      awaitingMapPick = false;
 
       if (!navigator.geolocation) {
         promptMapPick(destination, 'Automatic location is not available. <b>Tap your location on the map</b>, or type a starting point like <b>from Matina to Abreeza</b>.');
         return;
       }
 
-      pendingDestination = destination;
-      const btn = document.getElementById('locate-btn');
+      const btn = document.getElementById('origin-gps');
       btn.disabled = true;
       btn.classList.add('is-locating');
-      btn.textContent = '⏳ Locating…';
+      btn.textContent = 'Locating…';
 
       let receivedCoarseFix = false;
       const fail = () => {
@@ -5064,12 +5197,10 @@
                 !Number.isFinite(accuracy) || accuracy < 0) return;
             if (accuracy > LOCATION_ACCURACY_LIMIT) {
               receivedCoarseFix = true;
-              btn.textContent = '⏳ Improving accuracy…';
+              btn.textContent = 'Improving accuracy…';
               return;
             }
-            cancelLocationRequest();
-            pendingDestination = null;
-            applyUserLocation(latitude, longitude, destination, accuracy);
+            setOrigin({ lat: latitude, lng: longitude, label: 'My location', accuracy }, 'gps');
           },
           error => {
             // A watch can recover after a provider timeout. Permission denial
@@ -5091,7 +5222,9 @@
       if (!query) return;
       tripPlanSequence++;
       cancelLocationRequest();
-      awaitingMapPick = false;
+      pinArmed = false;
+      coordOpen = false;
+      chooserOpen = false;
       pendingDestination = null;
       restoreLocateButton();
       geocodeSequence++;
@@ -5120,9 +5253,7 @@
       }
 
       if (!parsed.destination && parsed.origin) {
-        userLocation = parsed.origin;
-        setOriginMarker(parsed.origin);
-        showIdleState(`Starting point set to <b>${escapeHtml(parsed.origin.label)}</b>. Where do you want to go?`);
+        setOrigin(parsed.origin, originSourceFor(parsed.originText), { replan: false });
         return;
       }
 
@@ -5132,13 +5263,13 @@
       }
 
       if (parsed.origin) {
-        userLocation = parsed.origin;
+        setOrigin(parsed.origin, originSourceFor(parsed.originText), { focus: false, quiet: true });
         planTrip(parsed.origin, parsed.destination);
         return;
       }
 
       if (parsed.originText) {
-        renderRouteList(davaoRoutes, `I don't know where <b>${escapeHtml(parsed.originText)}</b> is. Tap <b>My Location</b> or use a known landmark like ${supportedPlacesText()}.`);
+        renderRouteList(davaoRoutes, `I don't know where <b>${escapeHtml(parsed.originText)}</b> is. Use <b>Set starting point</b> or a known landmark like ${supportedPlacesText()}.`);
         return;
       }
 
@@ -5223,7 +5354,87 @@
       };
     });
 
-    document.getElementById('locate-btn').onclick = () => locateUser();
+    // ---- starting-point controls ----
+    const coordinateInput = document.getElementById('origin-coord-input');
+    const coordinateApply = document.getElementById('origin-coord-apply');
+    const coordinateStatus = document.getElementById('origin-coord-status');
+
+    function validateCoordinateInput() {
+      const raw = coordinateInput.value.trim();
+      if (!raw) {
+        coordinateApply.disabled = true;
+        coordinateStatus.className = 'settings-status';
+        coordinateStatus.textContent = 'Latitude, longitude in decimal degrees.';
+        return null;
+      }
+      const parsed = parseCoordinate(raw);
+      if (!parsed) {
+        coordinateApply.disabled = true;
+        coordinateStatus.className = 'settings-status is-error';
+        coordinateStatus.textContent = 'Use latitude, longitude — for example 7.064000, 125.609000.';
+        return null;
+      }
+      if (parsed.error) {
+        coordinateApply.disabled = true;
+        coordinateStatus.className = 'settings-status is-error';
+        coordinateStatus.textContent = parsed.error;
+        return null;
+      }
+      coordinateApply.disabled = false;
+      coordinateStatus.className = 'settings-status';
+      coordinateStatus.textContent = `Ready: ${parsed.lat.toFixed(6)}, ${parsed.lng.toFixed(6)}`;
+      return parsed;
+    }
+
+    function openCoordinateField() {
+      pinArmed = false;
+      chooserOpen = false;
+      coordOpen = true;
+      coordinateInput.value = userLocation
+        ? `${userLocation.lat.toFixed(6)}, ${userLocation.lng.toFixed(6)}`
+        : `${map.getCenter().lat.toFixed(6)}, ${map.getCenter().lng.toFixed(6)}`;
+      validateCoordinateInput();
+      syncOriginUI();
+      coordinateInput.focus();
+      coordinateInput.select();
+    }
+
+    function applyCoordinate() {
+      const parsed = validateCoordinateInput();
+      if (!parsed) return;
+      setOrigin({
+        lat: parsed.lat,
+        lng: parsed.lng,
+        label: `${parsed.lat.toFixed(6)}, ${parsed.lng.toFixed(6)}`
+      }, 'coordinates');
+    }
+
+    document.getElementById('origin-gps').onclick = () => locateUser();
+    document.getElementById('origin-pin').onclick = () => {
+      pinArmed = !pinArmed;
+      if (pinArmed) { coordOpen = false; chooserOpen = false; }
+      syncOriginUI();
+    };
+    document.getElementById('origin-coord').onclick = () => {
+      if (coordOpen) { coordOpen = false; syncOriginUI(); return; }
+      openCoordinateField();
+    };
+    coordinateInput.addEventListener('input', validateCoordinateInput);
+    coordinateInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !coordinateApply.disabled) {
+        event.preventDefault();
+        applyCoordinate();
+      } else if (event.key === 'Escape') {
+        coordOpen = false;
+        syncOriginUI();
+      }
+    });
+    coordinateApply.onclick = applyCoordinate;
+
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      if (pinArmed) { pinArmed = false; syncOriginUI(); }
+    });
 
     // ================================================================
     // FRONTEND · BOOTSTRAP

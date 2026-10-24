@@ -383,11 +383,146 @@ async def check(browser_type, url):
         await browser.close()
 
 
+async def check_origin_selection(browser_type, url):
+    """Coordinate entry, map pin, draggable origin, and locale-independent precedence."""
+    browser = await browser_type.launch(**({'channel': 'chrome'} if browser_type.name == 'chromium' else {}))
+    try:
+        context = await browser.new_context()
+        await context.route('**/*.tile.openstreetmap.org/**', lambda route: route.abort())
+        await context.route('**/router.project-osrm.org/**', lambda route: route.fulfill(status=503, body='offline walk fallback'))
+        geocodes = []
+
+        async def count_geocode(route):
+            geocodes.append(route.request.url)
+            await route.fulfill(status=404, body='')
+
+        await context.route('**/nominatim.openstreetmap.org/**', count_geocode)
+        await context.route('**/places.googleapis.com/**', count_geocode)
+        await context.add_init_script('''(() => {
+          window.watches = []; window.cleared = [];
+          Object.defineProperty(navigator, 'geolocation', { configurable: true, value: {
+            watchPosition(success, error) { const id = watches.length; watches.push({ success, error }); return id; },
+            clearWatch(id) { cleared.push(id); }
+          }});
+          window.deliver = (id, accuracy, latitude = 7.05871, longitude = 125.56881) =>
+            watches[id].success({ coords: { latitude, longitude, accuracy } });
+        })();''')
+        page = await context.new_page()
+        errors = []
+        page.on('pageerror', lambda error: errors.append(str(error)))
+        await page.goto(url, wait_until='domcontentloaded')
+        await page.wait_for_function("typeof map !== 'undefined' && map && davaoRoutes.every(route => route.stopInfo)")
+
+        # A bare "from <pair>" is a starting point, not a destination to geocode.
+        await page.locator('#chat-input').fill('from 7.064, 125.609')
+        await page.locator('#search-btn').click()
+        await page.wait_for_function('userLocation && userLocation.lat > 7')
+        result = await page.evaluate('''() => ({
+          source: originSource,
+          lat: userLocation.lat, lng: userLocation.lng,
+          trip: !!currentTrip,
+          destination: !!destinationMarker,
+          hint: document.getElementById('search-hint').textContent
+        })''')
+        assert result['source'] == 'coordinates', result
+        assert abs(result['lat'] - 7.064) < 1e-9 and abs(result['lng'] - 125.609) < 1e-9, result
+        assert not result['trip'] and not result['destination'], result
+        assert 'Starting from' in result['hint'], result
+        assert not geocodes, f'coordinate origin was sent to a geocoder: {geocodes}'
+        print('PASS: a bare "from latitude, longitude" sets a starting point without place lookup', flush=True)
+
+        # The coordinate field validates before it applies, and an out-of-range
+        # pair is explained rather than accepted.
+        await page.locator('#hint-change').click()
+        await page.locator('#origin-coord').click()
+        await page.locator('#origin-coord-input').fill('7.064, 999')
+        assert await page.locator('#origin-coord-apply').is_disabled()
+        assert 'between -90 and 90' in await page.locator('#origin-coord-status').inner_text()
+        await page.locator('#origin-coord-input').fill('7.0700, 125.6100')
+        assert not await page.locator('#origin-coord-apply').is_disabled()
+        await page.locator('#origin-coord-apply').click()
+        assert await page.evaluate('originSource==="coordinates" && Math.abs(userLocation.lat-7.07)<1e-9'), 'coordinate field did not apply'
+        print('PASS: the coordinate field rejects impossible values and applies a valid pair', flush=True)
+
+        # A dropped pin with no destination just sets the starting point.
+        await page.locator('#hint-change').click()
+        await page.locator('#origin-pin').click()
+        assert await page.evaluate('pinArmed'), 'pin mode did not arm'
+        # Offset from the centre: the marker sits there, and clicking it is not a map click.
+        point = await page.evaluate('({x: map.getSize().x*0.28, y: map.getSize().y*0.72})')
+        await page.locator('#map').click(position=point)
+        await page.wait_for_function('userLocation.label === "Dropped pin"')
+        assert await page.evaluate('originSource === "pin" && !pinArmed && !currentTrip'), 'pin mode did not settle'
+
+        # Dragging the marker moves the starting point without moving the map.
+        # Let the previous focus animation finish before sampling the centre.
+        await page.wait_for_timeout(400)
+        box = await page.locator('.origin-pin').bounding_box()
+        assert box, 'origin marker has no element to drag'
+        center_before = await page.evaluate('map.getCenter()')
+        lat_before = await page.evaluate('userLocation.lat')
+        start = {'x': box['x'] + box['width'] / 2, 'y': box['y'] + box['height'] / 2}
+        await page.mouse.move(start['x'], start['y'])
+        await page.mouse.down()
+        await page.mouse.move(start['x'] + 60, start['y'] + 40, steps=8)
+        await page.mouse.up()
+        await page.wait_for_function(f'userLocation.lat !== {lat_before!r}')
+        result = await page.evaluate('''() => ({
+          lat: userLocation.lat, lng: userLocation.lng,
+          center: map.getCenter(), label: userLocation.label, source: originSource
+        })''')
+        same_view = abs(result['center']['lat'] - center_before['lat']) < 1e-9 and abs(result['center']['lng'] - center_before['lng']) < 1e-9
+        assert same_view, f'dragging the origin recentred the map: {center_before} -> {result["center"]}'
+        assert result['source'] == 'pin' and result['label'] == 'Dropped pin', result
+        print('PASS: dragging the origin marker moves the starting point without recentring the map', flush=True)
+
+        # A dropped pin re-plans the trip against the destination already chosen.
+        await page.locator('#chat-input').fill('Abreeza')
+        await page.locator('#search-btn').click()
+        await page.wait_for_function('currentTrip && currentTrip.destination.key === "abreeza"')
+        await page.locator('#hint-change').click()
+        await page.locator('#origin-pin').click()
+        assert await page.evaluate('pinArmed'), 'pin mode did not arm'
+        await page.locator('#map').click(position=point)
+        await page.wait_for_function('userLocation.label === "Dropped pin"')
+        await page.wait_for_function('currentTrip && currentTrip.destination.key === "abreeza"')
+        assert await page.evaluate('currentJourney && currentJourney.destination.key === "abreeza"'), 'the journey was not rebuilt for the new origin'
+        print('PASS: dropping a pin re-plans the current trip instead of clearing the destination', flush=True)
+
+        # A fix that arrives after a manual choice must not overwrite it.
+        await page.locator('#hint-change').click()
+        await page.locator('#origin-gps').click()
+        assert await page.evaluate('watches.length === 1'), 'no location watch was started'
+        await page.locator('#hint-change').click()
+        await page.locator('#origin-pin').click()
+        await page.locator('#map').click(position=point)
+        await page.wait_for_function('userLocation.label === "Dropped pin"')
+        lat_after_pin = await page.evaluate('userLocation.lat')
+        await page.evaluate('deliver(0, 14, 0, 0)')
+        assert await page.evaluate(f'userLocation.label === "Dropped pin" && userLocation.lat === {lat_after_pin!r}'), 'late GPS fix replaced the manual origin'
+        print('PASS: a late GPS fix cannot replace a manually chosen starting point', flush=True)
+
+        # On a phone the status line must stay visible: it carries the only cancel.
+        await page.set_viewport_size({'width': 390, 'height': 720})
+        await page.locator('#hint-change').click()
+        await page.locator('#origin-pin').click()
+        assert await page.evaluate('pinArmed'), 'pin mode did not arm on a phone viewport'
+        assert await page.evaluate("getComputedStyle(document.getElementById('search-hint')).display !== 'none'"), 'the starting-point line is hidden on a phone'
+        await page.locator('#hint-cancel-pin').click()
+        assert await page.evaluate('!pinArmed'), 'cancel did not leave pin mode'
+        print('PASS: phone-width status line shows the cancel action for a paused pick', flush=True)
+
+        assert not errors, errors
+    finally:
+        await browser.close()
+
+
 async def main(args):
     async with async_playwright() as playwright:
         for name in args.browsers:
             print(f'Checking {name}', flush=True)
             await check(getattr(playwright, name), args.url)
+            await check_origin_selection(getattr(playwright, name), args.url)
 
 
 if __name__ == '__main__':

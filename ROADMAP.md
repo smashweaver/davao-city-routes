@@ -52,7 +52,7 @@ before treating routes, schedules, or free fares as app data.
 ## Firefox freezing (priority)
 
 Symptom: page can lock up in Firefox (Linux), especially around geolocation and
-map rendering. Clicking "My Location" has triggered the freeze both before and
+map rendering. Requesting location has triggered the freeze both before and
 after installing GeoClue; the underlying browser/OS cause is still unconfirmed.
 
 ### Status
@@ -126,6 +126,11 @@ after installing GeoClue; the underlying browser/OS cause is still unconfirmed.
 
 - [x] Accept decimal latitude/longitude pairs directly in Find Route as a
       destination or an explicit origin, preserving precision and validating ranges.
+- [x] Set the starting point by dropped pin or typed coordinates as well as
+      automatic location; drag a dropped pin to move it and re-plan.
+      `setOrigin()` owns the choice, `originSource` records how it was made, and
+      the three options stay collapsed behind the status line so the panel keeps
+      its height. Manual choices survive a later location fix.
 - [x] Show a destination flag pin and permanent label, including while finding
       the starting point or when the current route network cannot connect a trip.
 

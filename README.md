@@ -50,8 +50,14 @@ animated jeepney marker.
   trip animates end to end, with a pedestrian marker while walking and a jeep in
   the route colour while riding. The progress bar spans the whole journey, and
   time follows distance so each leg gets its share.
-- **Geolocation** — "My Location" watches for a fix with reported accuracy of
-  500 m or better, stops after accepting it, and offers a manual fallback if
+- **Starting point** — three ways to set where you start: automatic location,
+  a pin dropped on the map, or a typed `latitude, longitude`. The choices stay
+  collapsed behind the status line until you ask for them, so the panel keeps
+  its height. A dropped pin is draggable; moving it re-plans the current trip
+  without recentring the map. Typed coordinates validate as you enter them, and
+  a manual choice always wins over a location fix that arrives later.
+- **Geolocation** — automatic location watches for a fix with reported accuracy
+  of 500 m or better, stops after accepting it, and opens the pin fallback if
   location is unavailable or remains too broad for 12 seconds.
 - **Responsive layout** — a paper-and-green route guide beside the map on desktop;
   a map above the planner on mobile. Styling lives in the HTML, with no CSS framework.
@@ -131,10 +137,34 @@ browsers often block or degrade geolocation on `file://`.
 ## Place lookup
 
 Find Route accepts decimal coordinates in **latitude, longitude** order, such as
-`7.09145, 125.61033`. A pair on its own is a destination; use
-`from 7.09145, 125.61033 to SM Lanang` to set a starting point. Both ends can be
-coordinates. Coordinate input is validated and used directly without a place
+`7.09145, 125.61033`. A pair on its own is a destination; `from 7.09145,
+125.61033` sets a starting point, and `from 7.09145, 125.61033 to SM Lanang` sets
+both ends. Coordinate input is validated and used directly without a place
 lookup; route planning still depends on coverage by the mapped jeep routes.
+
+The same starting point can also be set without typing: **Set starting point →
+Drop a pin**, then click the map. The blue marker can be dragged afterwards.
+
+## Starting point
+
+The status line under the search box reports the current starting point and
+offers **change**; the three choices (*My location*, *Drop a pin*, *Coordinates*)
+appear only while choosing, so the panel does not permanently lose height. Each
+choice records where it came from (`originSource`: `gps`, `pin`, `coordinates`,
+or `place`) and that value drives the marker label and the active state.
+
+Rules worth preserving when changing this code:
+
+- Any manual choice cancels a pending location request, so a fix that arrives
+  later cannot overwrite it.
+- Only automatic location and typed coordinates recentre the map; dropping or
+  dragging a pin leaves the current view alone.
+- Setting a starting point while a trip is shown re-plans that trip instead of
+  clearing the destination.
+- Pin mode is modal and must always be escapable: the status line carries
+  **cancel**, it stays visible at phone widths, and the map grows to 55% while
+  aiming there.
+
 
 Typed places are resolved in this order:
 
@@ -301,6 +331,11 @@ temporary and removed after the route data was written into `index.html`.
   cancellation, destination preservation, and route-line map selection. Real
   Firefox diagnostics have returned a precise Wi-Fi estimate, but repeated real
   location reliability is still unresolved; see `tools/geolocation/README.md`.
+- Starting-point checks cover a bare `from latitude, longitude` (a starting
+  point, never geocoded), coordinate-field rejection and application, dropping a
+  pin to re-plan the current trip, dragging the marker without recentring the
+  map, a late location fix that cannot replace a manual choice, and the cancel
+  action at phone width.
 - Planner checks reproduce a shared-stop detour, verify a single
   direct walking leg with recalculated distance and geometry endpoints, and
   ensure jeepney trips retain their rides and access/egress walking. They also

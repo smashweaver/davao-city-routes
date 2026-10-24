@@ -38,7 +38,14 @@ manifest. Serve with `./run.sh [port]` (default 8000). Full documentation:
   Google Maps walking link is always shown.
 - Place lookup order: local landmarks → Google Places (New, optional key) →
   OSM Nominatim fallback. Decimal `latitude, longitude` input is parsed locally;
-  a bare pair is a destination, while `from <pair> to <place>` sets the origin.
+  a bare pair is a destination, `from <pair>` sets the starting point, and
+  `from <pair> to <place>` sets both ends.
+- The starting point is one piece of state (`userLocation`) plus
+  `originSource` (`gps`/`pin`/`coordinates`/`place`). `setOrigin()` is the only
+  writer, it cancels any pending location watch, and `syncOriginUI()` is the only
+  place that decides what the status line and the collapsed chooser show. A
+  manual choice must never be overwritten by a later fix; only GPS and typed
+  coordinates recentre the map.
 - Nearby boarding/alighting points are inferred from route geometry as well as
   named landmarks. Access points are estimates. Shortlist up to three jeep
   itineraries using straight-line costs, then compare routed road distances
@@ -64,7 +71,7 @@ browser checks and geolocation.
 
 | Tool | Use it for |
 | --- | --- |
-| `tools/planner/regression_checks.py` | Direct walks, nearby route access, coordinate input, road-detour ranking, transfer costs, deduplication, routing fallback, stale-plan cancellation, journey markers, and whole-journey playback. |
+| `tools/planner/regression_checks.py` | Direct walks, nearby route access, coordinate input, road-detour ranking, transfer costs, deduplication, routing fallback, stale-plan cancellation, journey markers, whole-journey playback, and starting-point selection (coordinate origin, dropped and dragged pin, late-fix precedence, phone cancel). |
 | `tools/planner/compare_walks.py` | Reusable OSRM comparison of direct, boarding-access, and alighting-egress paths; configure coordinates, router, profile, timeout, interval, user agent, steps, and JSON output through CLI parameters. See `tools/planner/README.md`. |
 | `tools/geolocation/regression_checks.py` | Mocked location ordering, cleanup, cancellation, denial, timeout, and destination preservation. |
 | `tools/geolocation/native_probe.py` | Installed Firefox's native `getCurrentPosition` provider path. |

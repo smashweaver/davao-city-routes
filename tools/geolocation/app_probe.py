@@ -90,14 +90,14 @@ try:
  print('APP READY',flush=True)
  js("window.heartbeat=0;setInterval(()=>heartbeat++,100);window.geoReadings=[];window.clearCount=0;const startWatch=navigator.geolocation.watchPosition.bind(navigator.geolocation);const stopWatch=navigator.geolocation.clearWatch.bind(navigator.geolocation);navigator.geolocation.watchPosition=(success,error,options)=>startWatch(p=>{geoReadings.push({accuracy:p.coords.accuracy,when:Date.now()});success(p)},error,options);navigator.geolocation.clearWatch=id=>{clearCount++;stopWatch(id)};")
  for run in range(3):
-  js("userLocation=null;document.getElementById('locate-btn').click();")
+  js("userLocation=null;originSource=null;syncOriginUI();locateUser();")
   for _ in range(28):
    time.sleep(.5)
-   state=js("return {heartbeat,locationSet:!!userLocation,accuracy:userLocation?.accuracy,awaitingMapPick,watch:locationWatchId,clearCount,readings:geoReadings.map(p=>p.accuracy),button:document.getElementById('locate-btn').textContent};")
+   state=js("return {heartbeat,locationSet:!!userLocation,accuracy:userLocation?.accuracy,pinArmed,watch:locationWatchId,clearCount,readings:geoReadings.map(p=>p.accuracy),button:document.getElementById('origin-gps').textContent};")
    value=state.get('value',state)
-   if value['locationSet'] or value['awaitingMapPick']:break
+   if value['locationSet'] or value['pinArmed']:break
   print('APP RUN',run+1,state,flush=True)
-  assert value['locationSet'] and value['accuracy']<=500 and value['watch'] is None and not value['awaitingMapPick'], 'No usable automatic location'
+  assert value['locationSet'] and value['accuracy']<=500 and value['watch'] is None and not value['pinArmed'], 'No usable automatic location'
   time.sleep(1)
  print('PASS: three app requests accepted a usable fix and stopped watching; provider:', 'local mock' if mode.endswith('-local') else 'real network', flush=True)
 
