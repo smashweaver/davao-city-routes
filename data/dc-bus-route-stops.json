@@ -1,0 +1,1519 @@
+{
+  "source_url": "https://davaobus.davaocity.gov.ph/dibs/public/bus/info",
+  "api_url": "https://davaobus.davaocity.gov.ph/dibs/application/api/app",
+  "request": {
+    "method": "POST",
+    "form": {
+      "trans": "ROUTES"
+    }
+  },
+  "checked_on": "2026-10-24",
+  "raw_response_sha256": "473c304535cac6c7d4372ac4e51e230a7cac08f2ebb28c7c010050553f3acc4a",
+  "status": "official_published_route_stop_lists; not_field_validated",
+  "limits": [
+    "AM and PM are service shifts, not confirmed direction identifiers",
+    "Stop order and consecutive duplicates preserved from source",
+    "No coordinates, geometry, per-stop times, fares, or service validity dates in this response",
+    "96 distinct exact stop-name strings do not establish 96 physical boarding locations",
+    "Reuse terms not established by this audit; not imported into the app"
+  ],
+  "routes": [
+    {
+      "id": "R603AM",
+      "category": "NORTH",
+      "shift": "AM",
+      "title": "Buhangin - Roxas",
+      "stops": [
+        {
+          "name": "Citymall Northtown"
+        },
+        {
+          "name": "Jollibee Cabantian"
+        },
+        {
+          "name": "NHA Buhangin"
+        },
+        {
+          "name": "Buhangin Gym"
+        },
+        {
+          "name": "Ladislawa"
+        },
+        {
+          "name": "Abreeza Mall"
+        },
+        {
+          "name": "NCCC Mall VP"
+        },
+        {
+          "name": "Red Cross Roxas"
+        },
+        {
+          "name": "Red Cross Roxas"
+        },
+        {
+          "name": "Davao Mental Hospital"
+        },
+        {
+          "name": "NCCC Mall VP"
+        },
+        {
+          "name": "Abreeza Mall"
+        },
+        {
+          "name": "JP Laurel Flyover"
+        },
+        {
+          "name": "Ladislawa"
+        },
+        {
+          "name": "Holy Child Cabantian"
+        },
+        {
+          "name": "Jollibee Cabantian"
+        },
+        {
+          "name": "Citymall Northtown"
+        }
+      ]
+    },
+    {
+      "id": "R763AM",
+      "category": "NORTH",
+      "shift": "AM",
+      "title": "Panacan (via Buhangin) - Roxas",
+      "stops": [
+        {
+          "name": "Panacan Depot"
+        },
+        {
+          "name": "Panacan Bypass Rd."
+        },
+        {
+          "name": "LPU Davao"
+        },
+        {
+          "name": "Sta. Lucia Mall"
+        },
+        {
+          "name": "Mcdo Pagibig"
+        },
+        {
+          "name": "NHA Buhangin"
+        },
+        {
+          "name": "Buhangin Gym"
+        },
+        {
+          "name": "Ladislawa"
+        },
+        {
+          "name": "Abreeza Mall"
+        },
+        {
+          "name": "NCCC Mall VP"
+        },
+        {
+          "name": "Red Cross Roxas"
+        },
+        {
+          "name": "Red Cross Roxas"
+        },
+        {
+          "name": "Davao Mental Hospital"
+        },
+        {
+          "name": "NCCC Mall VP"
+        },
+        {
+          "name": "Abreeza Mall"
+        },
+        {
+          "name": "JP Laurel Flyover"
+        },
+        {
+          "name": "Ladislawa"
+        },
+        {
+          "name": "Milan Buhangin"
+        },
+        {
+          "name": "NHA Buhangin"
+        },
+        {
+          "name": "Laverna"
+        },
+        {
+          "name": "Jose Maria College"
+        },
+        {
+          "name": "Landmark"
+        },
+        {
+          "name": "Panacan Ave."
+        },
+        {
+          "name": "DavSam Ferry Terminal"
+        },
+        {
+          "name": "Panacan Depot"
+        }
+      ]
+    },
+    {
+      "id": "R783AM",
+      "category": "NORTH",
+      "shift": "AM",
+      "title": "Panacan (via Angliongto) - Roxas",
+      "stops": [
+        {
+          "name": "Panacan Depot"
+        },
+        {
+          "name": "Panacan Bypass Rd."
+        },
+        {
+          "name": "LPU Davao"
+        },
+        {
+          "name": "Sta. Lucia Mall"
+        },
+        {
+          "name": "Mcdo Pagibig"
+        },
+        {
+          "name": "Punad Bypass"
+        },
+        {
+          "name": "Angliongto Arcade"
+        },
+        {
+          "name": "Phil. Nikkei Jin Kai"
+        },
+        {
+          "name": "SM Lanang"
+        },
+        {
+          "name": "Carmelite Lanang"
+        },
+        {
+          "name": "Merco Cabaguio"
+        },
+        {
+          "name": "Assumption College"
+        },
+        {
+          "name": "Agdao Flyover"
+        },
+        {
+          "name": "Sta. Ana Sobrecarey"
+        },
+        {
+          "name": "Red Cross Roxas"
+        },
+        {
+          "name": "Red Cross Roxas"
+        },
+        {
+          "name": "Davao Mental Hospital"
+        },
+        {
+          "name": "Sta. Ana Sobrecarey"
+        },
+        {
+          "name": "Agdao Flyover"
+        },
+        {
+          "name": "Holy Cross R. Castillo"
+        },
+        {
+          "name": "Jerome R. Castillo"
+        },
+        {
+          "name": "Nova Tierra"
+        },
+        {
+          "name": "Doña Pilar"
+        },
+        {
+          "name": "Old Airport"
+        },
+        {
+          "name": "Shell Doña Salud"
+        },
+        {
+          "name": "Philippine Ports Authority"
+        },
+        {
+          "name": "Sasa Palengke"
+        },
+        {
+          "name": "DavSam Ferry Terminal"
+        },
+        {
+          "name": "Panacan Depot"
+        }
+      ]
+    },
+    {
+      "id": "R793AM",
+      "category": "NORTH",
+      "shift": "AM",
+      "title": "Panacan (via R Castillo) - Roxas",
+      "stops": [
+        {
+          "name": "NCCC Panacan"
+        },
+        {
+          "name": "Sasa Palengke"
+        },
+        {
+          "name": "Sulpicio Rd. Sasa"
+        },
+        {
+          "name": "Doña Salud"
+        },
+        {
+          "name": "Old Airport"
+        },
+        {
+          "name": "Petron Doña Pilar"
+        },
+        {
+          "name": "Nova Tierra"
+        },
+        {
+          "name": "Jerome R. Castillo"
+        },
+        {
+          "name": "Holy Cross R. Castillo"
+        },
+        {
+          "name": "Agdao Flyover"
+        },
+        {
+          "name": "Sta. Ana Sobrecarey"
+        },
+        {
+          "name": "Red Cross Roxas"
+        },
+        {
+          "name": "Red Cross Roxas"
+        },
+        {
+          "name": "Davao Mental Hospital"
+        },
+        {
+          "name": "Sta. Ana Sobrecarey"
+        },
+        {
+          "name": "Agdao Flyover"
+        },
+        {
+          "name": "Assumption College"
+        },
+        {
+          "name": "Shell SPMC"
+        },
+        {
+          "name": "Tebow Hospital Lanang"
+        },
+        {
+          "name": "SM Lanang"
+        },
+        {
+          "name": "Starbucks Damosa"
+        },
+        {
+          "name": "Angliongto Arcade"
+        },
+        {
+          "name": "Punad Bypass"
+        },
+        {
+          "name": "Laverna"
+        },
+        {
+          "name": "Jose Maria College"
+        },
+        {
+          "name": "Landmark"
+        },
+        {
+          "name": "Panacan Ave."
+        },
+        {
+          "name": "NCCC Panacan"
+        }
+      ]
+    },
+    {
+      "id": "R603PM",
+      "category": "NORTH",
+      "shift": "PM",
+      "title": "Buhangin - Roxas",
+      "stops": [
+        {
+          "name": "Red Cross Roxas"
+        },
+        {
+          "name": "Davao Mental Hospital"
+        },
+        {
+          "name": "NCCC Mall VP"
+        },
+        {
+          "name": "Abreeza Mall"
+        },
+        {
+          "name": "JP Laurel Flyover"
+        },
+        {
+          "name": "Ladislawa"
+        },
+        {
+          "name": "Citygate Buhangin"
+        },
+        {
+          "name": "Citygate Buhangin"
+        },
+        {
+          "name": "Ladislawa"
+        },
+        {
+          "name": "Abreeza Mall"
+        },
+        {
+          "name": "NCCC Mall VP"
+        },
+        {
+          "name": "Red Cross Roxas"
+        }
+      ]
+    },
+    {
+      "id": "R763PM",
+      "category": "NORTH",
+      "shift": "PM",
+      "title": "Panacan (via Buhangin) - Roxas",
+      "stops": [
+        {
+          "name": "Red Cross Roxas"
+        },
+        {
+          "name": "Davao Mental Hospital"
+        },
+        {
+          "name": "NCCC Mall VP"
+        },
+        {
+          "name": "Abreeza Mall"
+        },
+        {
+          "name": "JP Laurel Flyover"
+        },
+        {
+          "name": "Ladislawa"
+        },
+        {
+          "name": "Milan Buhangin"
+        },
+        {
+          "name": "NHA Buhangin"
+        },
+        {
+          "name": "Laverna"
+        },
+        {
+          "name": "Jose Maria College"
+        },
+        {
+          "name": "Landmark"
+        },
+        {
+          "name": "Panacan Ave."
+        },
+        {
+          "name": "DavSam Ferry Terminal"
+        },
+        {
+          "name": "Panacan Depot"
+        },
+        {
+          "name": "Panacan Depot"
+        },
+        {
+          "name": "Panacan Bypass Rd."
+        },
+        {
+          "name": "LPU Davao"
+        },
+        {
+          "name": "Sta. Lucia Mall"
+        },
+        {
+          "name": "Mcdo Pagibig"
+        },
+        {
+          "name": "NHA Buhangin"
+        },
+        {
+          "name": "Buhangin Gym"
+        },
+        {
+          "name": "Ladislawa"
+        },
+        {
+          "name": "Abreeza Mall"
+        },
+        {
+          "name": "NCCC Mall VP"
+        },
+        {
+          "name": "Red Cross Roxas"
+        }
+      ]
+    },
+    {
+      "id": "R783PM",
+      "category": "NORTH",
+      "shift": "PM",
+      "title": "Panacan (via Angliongto) - Roxas",
+      "stops": [
+        {
+          "name": "Red Cross Roxas"
+        },
+        {
+          "name": "Davao Mental Hospital"
+        },
+        {
+          "name": "Sta. Ana Sobrecarey"
+        },
+        {
+          "name": "Agdao Flyover"
+        },
+        {
+          "name": "Holy Cross R. Castillo"
+        },
+        {
+          "name": "Jerome R. Castillo"
+        },
+        {
+          "name": "Nova Tierra"
+        },
+        {
+          "name": "Doña Pilar"
+        },
+        {
+          "name": "Old Airport"
+        },
+        {
+          "name": "Shell Doña Salud"
+        },
+        {
+          "name": "Philippine Ports Authority"
+        },
+        {
+          "name": "Sasa Palengke"
+        },
+        {
+          "name": "DavSam Ferry Terminal"
+        },
+        {
+          "name": "Panacan Depot"
+        },
+        {
+          "name": "Panacan Depot"
+        },
+        {
+          "name": "Panacan Bypass Rd."
+        },
+        {
+          "name": "LPU Davao"
+        },
+        {
+          "name": "Sta. Lucia Mall"
+        },
+        {
+          "name": "Mcdo Pagibig"
+        },
+        {
+          "name": "Punad Bypass"
+        },
+        {
+          "name": "Angliongto Arcade"
+        },
+        {
+          "name": "Phil. Nikkei Jin Kai"
+        },
+        {
+          "name": "SM Lanang"
+        },
+        {
+          "name": "Carmelite Lanang"
+        },
+        {
+          "name": "Merco Cabaguio"
+        },
+        {
+          "name": "Assumption College"
+        },
+        {
+          "name": "Agdao Flyover"
+        },
+        {
+          "name": "Sta. Ana Sobrecarey"
+        },
+        {
+          "name": "Red Cross Roxas"
+        }
+      ]
+    },
+    {
+      "id": "R793PM",
+      "category": "NORTH",
+      "shift": "PM",
+      "title": "Panacan (via R. Castillo) - Roxas",
+      "stops": [
+        {
+          "name": "Red Cross Roxas"
+        },
+        {
+          "name": "Davao Mental Hospital"
+        },
+        {
+          "name": "Sta. Ana Sobrecarey"
+        },
+        {
+          "name": "Agdao Flyover"
+        },
+        {
+          "name": "Assumption College"
+        },
+        {
+          "name": "Shell SPMC"
+        },
+        {
+          "name": "Tebow Hospital Lanang"
+        },
+        {
+          "name": "SM Lanang"
+        },
+        {
+          "name": "Starbucks Damosa"
+        },
+        {
+          "name": "Angliongto Arcade"
+        },
+        {
+          "name": "Punad Bypass"
+        },
+        {
+          "name": "Laverna"
+        },
+        {
+          "name": "Jose Maria College"
+        },
+        {
+          "name": "Landmark"
+        },
+        {
+          "name": "Panacan Ave."
+        },
+        {
+          "name": "NCCC Panacan"
+        },
+        {
+          "name": "NCCC Panacan"
+        },
+        {
+          "name": "Sasa Palengke"
+        },
+        {
+          "name": "Sulpicio Rd. Sasa"
+        },
+        {
+          "name": "Doña Salud"
+        },
+        {
+          "name": "Old Airport"
+        },
+        {
+          "name": "Petron Doña Pilar"
+        },
+        {
+          "name": "Nova Tierra"
+        },
+        {
+          "name": "Jerome R. Castillo"
+        },
+        {
+          "name": "Holy Cross R. Castillo"
+        },
+        {
+          "name": "Agdao Flyover"
+        },
+        {
+          "name": "Sta. Ana Sobrecarey"
+        },
+        {
+          "name": "Red Cross Roxas"
+        }
+      ]
+    },
+    {
+      "id": "R102AM",
+      "category": "SOUTH",
+      "shift": "AM",
+      "title": "Toril - GE Torres",
+      "stops": [
+        {
+          "name": "Toril District Hall"
+        },
+        {
+          "name": "Fusion GTH"
+        },
+        {
+          "name": "Pepsi Dumoy"
+        },
+        {
+          "name": "Bago Aplaya Crossing"
+        },
+        {
+          "name": "Gulf View"
+        },
+        {
+          "name": "Jollibee Puan"
+        },
+        {
+          "name": "Coke Ulas"
+        },
+        {
+          "name": "Ateneo Senior High"
+        },
+        {
+          "name": "SPED Bangkal"
+        },
+        {
+          "name": "Tahimik Ave. Matina"
+        },
+        {
+          "name": "Matina Crossing"
+        },
+        {
+          "name": "Kawayan Drive"
+        },
+        {
+          "name": "DGT"
+        },
+        {
+          "name": "Water Dist. Matina"
+        },
+        {
+          "name": "NCCC Maa"
+        },
+        {
+          "name": "Ateneo Matina"
+        },
+        {
+          "name": "GE Torres (Sandawa)"
+        },
+        {
+          "name": "GE Torres (Sandawa)"
+        },
+        {
+          "name": "Yellow Fin Quimpo"
+        },
+        {
+          "name": "Coastal Rd. Times Beach"
+        },
+        {
+          "name": "Shell Bago Aplaya"
+        },
+        {
+          "name": "IWHA"
+        },
+        {
+          "name": "GTH"
+        },
+        {
+          "name": "Toril District Hall"
+        }
+      ]
+    },
+    {
+      "id": "R103AM",
+      "category": "SOUTH",
+      "shift": "AM",
+      "title": "Toril - Roxas",
+      "stops": [
+        {
+          "name": "Toril District Hall"
+        },
+        {
+          "name": "Fusion GTH"
+        },
+        {
+          "name": "Pepsi Dumoy"
+        },
+        {
+          "name": "Bago Aplaya Crossing"
+        },
+        {
+          "name": "Coastal Rd. Times Beach"
+        },
+        {
+          "name": "Ecoland Terminal"
+        },
+        {
+          "name": "Felcris Centrale"
+        },
+        {
+          "name": "Davao City Police Office"
+        },
+        {
+          "name": "CM Recto Ave."
+        },
+        {
+          "name": "Red Cross Roxas"
+        },
+        {
+          "name": "Red Cross Roxas"
+        },
+        {
+          "name": "Artiaga Boulevard"
+        },
+        {
+          "name": "Felcris Centrale"
+        },
+        {
+          "name": "Yellow Fin Quimpo"
+        },
+        {
+          "name": "Coastal Rd. Times Beach"
+        },
+        {
+          "name": "Shell Bago Aplaya"
+        },
+        {
+          "name": "IWHA"
+        },
+        {
+          "name": "GTH"
+        },
+        {
+          "name": "Toril District Hall"
+        }
+      ]
+    },
+    {
+      "id": "R402AM",
+      "category": "SOUTH",
+      "shift": "AM",
+      "title": "Mintal - GE Torres",
+      "stops": [
+        {
+          "name": "Mintal Palengke"
+        },
+        {
+          "name": "Sto Niño Mintal"
+        },
+        {
+          "name": "Green Meadows"
+        },
+        {
+          "name": "Catalunan Pequeño"
+        },
+        {
+          "name": "Wellspring Village"
+        },
+        {
+          "name": "Ateneo Senior High"
+        },
+        {
+          "name": "SPED Bangkal"
+        },
+        {
+          "name": "Tahimik Ave. Matina"
+        },
+        {
+          "name": "Matina Crossing"
+        },
+        {
+          "name": "Kawayan Drive"
+        },
+        {
+          "name": "DGT"
+        },
+        {
+          "name": "Water Dist. Matina"
+        },
+        {
+          "name": "NCCC Maa"
+        },
+        {
+          "name": "Ateneo Matina"
+        },
+        {
+          "name": "GE Torres (Sandawa)"
+        },
+        {
+          "name": "GE Torres (Sandawa)"
+        },
+        {
+          "name": "Yellow Fin Quimpo"
+        },
+        {
+          "name": "PWC Quimpo"
+        },
+        {
+          "name": "LTO Ecoland"
+        },
+        {
+          "name": "Kawayan Drive"
+        },
+        {
+          "name": "Matina Crossing"
+        },
+        {
+          "name": "Tahimik Ave. Matina"
+        },
+        {
+          "name": "SPED Bangkal"
+        },
+        {
+          "name": "Shell Bangkal"
+        },
+        {
+          "name": "Wellspring Village"
+        },
+        {
+          "name": "Catalunan Pequeño"
+        },
+        {
+          "name": "Gaisano Capital"
+        },
+        {
+          "name": "Vista Mall"
+        },
+        {
+          "name": "Mintal Palengke"
+        }
+      ]
+    },
+    {
+      "id": "R403AM",
+      "category": "SOUTH",
+      "shift": "AM",
+      "title": "Mintal - Roxas",
+      "stops": [
+        {
+          "name": "Mintal Palengke"
+        },
+        {
+          "name": "Sto Niño Mintal"
+        },
+        {
+          "name": "Green Meadows"
+        },
+        {
+          "name": "Catalunan Pequeño"
+        },
+        {
+          "name": "Wellspring Village"
+        },
+        {
+          "name": "Ateneo Senior High"
+        },
+        {
+          "name": "SPED Bangkal"
+        },
+        {
+          "name": "Tahimik Ave. Matina"
+        },
+        {
+          "name": "Matina Crossing"
+        },
+        {
+          "name": "Kawayan Drive"
+        },
+        {
+          "name": "DGT"
+        },
+        {
+          "name": "Water Dist. Matina"
+        },
+        {
+          "name": "NCCC Maa"
+        },
+        {
+          "name": "Ateneo Matina"
+        },
+        {
+          "name": "Pichon St. cor. Quirino Ave."
+        },
+        {
+          "name": "Grand Menseng Hotel"
+        },
+        {
+          "name": "CM Recto Ave."
+        },
+        {
+          "name": "Davao Light (C. Bangoy St.)"
+        },
+        {
+          "name": "Davao Light (C. Bangoy St.)"
+        },
+        {
+          "name": "San Pedro St."
+        },
+        {
+          "name": "UM Matina"
+        },
+        {
+          "name": "Alorica Davao"
+        },
+        {
+          "name": "Shrine Hills Matina"
+        },
+        {
+          "name": "Kawayan Drive"
+        },
+        {
+          "name": "Matina Crossing"
+        },
+        {
+          "name": "Tahimik Ave. Matina"
+        },
+        {
+          "name": "SPED Bangkal"
+        },
+        {
+          "name": "Shell Bangkal"
+        },
+        {
+          "name": "Wellspring Village"
+        },
+        {
+          "name": "Catalunan Pequeño"
+        },
+        {
+          "name": "Gaisano Capital"
+        },
+        {
+          "name": "Vista Mall"
+        },
+        {
+          "name": "Mintal Palengke"
+        }
+      ]
+    },
+    {
+      "id": "R503AM",
+      "category": "SOUTH",
+      "shift": "AM",
+      "title": "Bangkal - Roxas",
+      "stops": [
+        {
+          "name": "Hope Ave. Bangkal"
+        },
+        {
+          "name": "Ateneo Senior High"
+        },
+        {
+          "name": "SPED Bangkal"
+        },
+        {
+          "name": "Tahimik Ave. Matina"
+        },
+        {
+          "name": "Matina Crossing"
+        },
+        {
+          "name": "Kawayan Drive"
+        },
+        {
+          "name": "DGT"
+        },
+        {
+          "name": "Water Dist. Matina"
+        },
+        {
+          "name": "NCCC Maa"
+        },
+        {
+          "name": "Ateneo Matina"
+        },
+        {
+          "name": "Pichon St. cor. Quirino Ave."
+        },
+        {
+          "name": "Grand Menseng Hotel"
+        },
+        {
+          "name": "CM Recto Ave."
+        },
+        {
+          "name": "Davao Light (C. Bangoy St.)"
+        },
+        {
+          "name": "Davao Light (C. Bangoy St.)"
+        },
+        {
+          "name": "San Pedro St."
+        },
+        {
+          "name": "UM Matina"
+        },
+        {
+          "name": "Alorica Davao"
+        },
+        {
+          "name": "Shrine Hills Matina"
+        },
+        {
+          "name": "Kawayan Drive"
+        },
+        {
+          "name": "Matina Crossing"
+        },
+        {
+          "name": "Tahimik Ave. Matina"
+        },
+        {
+          "name": "SPED Bangkal"
+        },
+        {
+          "name": "Shell Bangkal"
+        },
+        {
+          "name": "Hope Ave. Bangkal"
+        }
+      ]
+    },
+    {
+      "id": "R102PM",
+      "category": "SOUTH",
+      "shift": "PM",
+      "title": "Toril - GE Torres",
+      "stops": [
+        {
+          "name": "Ecoland Terminal"
+        },
+        {
+          "name": "GE Torres (Sandawa)"
+        },
+        {
+          "name": "UM Matina"
+        },
+        {
+          "name": "Alorica Davao"
+        },
+        {
+          "name": "Shrine Hills Matina"
+        },
+        {
+          "name": "Kawayan Drive"
+        },
+        {
+          "name": "Matina Crossing"
+        },
+        {
+          "name": "Tahimik Ave. Matina"
+        },
+        {
+          "name": "SPED Bangkal"
+        },
+        {
+          "name": "Shell Bangkal"
+        },
+        {
+          "name": "Coke Ulas"
+        },
+        {
+          "name": "Mercury Puan"
+        },
+        {
+          "name": "Apo Golf"
+        },
+        {
+          "name": "Shell Bago Aplaya"
+        },
+        {
+          "name": "IWHA"
+        },
+        {
+          "name": "GTH"
+        },
+        {
+          "name": "Toril District Hall"
+        },
+        {
+          "name": "Toril District Hall"
+        },
+        {
+          "name": "Fusion GTH"
+        },
+        {
+          "name": "Pepsi Dumoy"
+        },
+        {
+          "name": "Bago Aplaya Crossing"
+        },
+        {
+          "name": "Coastal Rd. Times Beach"
+        },
+        {
+          "name": "Ecoland Terminal"
+        }
+      ]
+    },
+    {
+      "id": "R103PM",
+      "category": "SOUTH",
+      "shift": "PM",
+      "title": "Toril - Roxas",
+      "stops": [
+        {
+          "name": "Davao Light (C. Bangoy St.)"
+        },
+        {
+          "name": "UM Bolton"
+        },
+        {
+          "name": "Felcris Centrale"
+        },
+        {
+          "name": "Yellow Fin Quimpo"
+        },
+        {
+          "name": "Coastal Rd. Times Beach"
+        },
+        {
+          "name": "Shell Bago Aplaya"
+        },
+        {
+          "name": "IWHA"
+        },
+        {
+          "name": "GTH"
+        },
+        {
+          "name": "Toril District Hall"
+        },
+        {
+          "name": "Toril District Hall"
+        },
+        {
+          "name": "Fusion GTH"
+        },
+        {
+          "name": "Pepsi Dumoy"
+        },
+        {
+          "name": "Bago Aplaya Crossing"
+        },
+        {
+          "name": "Coastal Rd. Times Beach"
+        },
+        {
+          "name": "Ecoland Terminal"
+        },
+        {
+          "name": "Felcris Centrale"
+        },
+        {
+          "name": "Davao City Police Office"
+        },
+        {
+          "name": "CM Recto Ave."
+        },
+        {
+          "name": "Davao Light (C. Bangoy St.)"
+        }
+      ]
+    },
+    {
+      "id": "R402PM",
+      "category": "SOUTH",
+      "shift": "PM",
+      "title": "Mintal - GE Torres",
+      "stops": [
+        {
+          "name": "Ecoland Terminal"
+        },
+        {
+          "name": "GE Torres (Sandawa)"
+        },
+        {
+          "name": "UM Matina"
+        },
+        {
+          "name": "Alorica Davao"
+        },
+        {
+          "name": "Shrine Hills Matina"
+        },
+        {
+          "name": "Kawayan Drive"
+        },
+        {
+          "name": "Matina Crossing"
+        },
+        {
+          "name": "Tahimik Ave. Matina"
+        },
+        {
+          "name": "SPED Bangkal"
+        },
+        {
+          "name": "Shell Bangkal"
+        },
+        {
+          "name": "Wellspring Village"
+        },
+        {
+          "name": "Catalunan Pequeño"
+        },
+        {
+          "name": "Gaisano Capital"
+        },
+        {
+          "name": "Vista Mall"
+        },
+        {
+          "name": "Mintal Palengke"
+        },
+        {
+          "name": "Mintal Palengke"
+        },
+        {
+          "name": "Sto Niño Mintal"
+        },
+        {
+          "name": "Green Meadows"
+        },
+        {
+          "name": "Catalunan Pequeño"
+        },
+        {
+          "name": "Wellspring Village"
+        },
+        {
+          "name": "Ateneo Senior High"
+        },
+        {
+          "name": "SPED Bangkal"
+        },
+        {
+          "name": "Tahimik Ave. Matina"
+        },
+        {
+          "name": "Matina Crossing"
+        },
+        {
+          "name": "Kawayan Drive"
+        },
+        {
+          "name": "SM Ecoland"
+        },
+        {
+          "name": "PWC Quimpo"
+        },
+        {
+          "name": "Ecoland Terminal"
+        }
+      ]
+    },
+    {
+      "id": "R403PM",
+      "category": "SOUTH",
+      "shift": "PM",
+      "title": "Mintal - Roxas",
+      "stops": [
+        {
+          "name": "Davao Light (C. Bangoy St.)"
+        },
+        {
+          "name": "San Pedro St."
+        },
+        {
+          "name": "UM Matina"
+        },
+        {
+          "name": "Alorica Davao"
+        },
+        {
+          "name": "Shrine Hills Matina"
+        },
+        {
+          "name": "Kawayan Drive"
+        },
+        {
+          "name": "Matina Crossing"
+        },
+        {
+          "name": "Tahimik Ave. Matina"
+        },
+        {
+          "name": "SPED Bangkal"
+        },
+        {
+          "name": "Shell Bangkal"
+        },
+        {
+          "name": "Wellspring Village"
+        },
+        {
+          "name": "Catalunan Pequeño"
+        },
+        {
+          "name": "Gaisano Capital"
+        },
+        {
+          "name": "Vista Mall"
+        },
+        {
+          "name": "Mintal Palengke"
+        },
+        {
+          "name": "Mintal Palengke"
+        },
+        {
+          "name": "Sto Niño Mintal"
+        },
+        {
+          "name": "Green Meadows"
+        },
+        {
+          "name": "Catalunan Pequeño"
+        },
+        {
+          "name": "Wellspring Village"
+        },
+        {
+          "name": "Ateneo Senior High"
+        },
+        {
+          "name": "SPED Bangkal"
+        },
+        {
+          "name": "Tahimik Ave. Matina"
+        },
+        {
+          "name": "Matina Crossing"
+        },
+        {
+          "name": "Kawayan Drive"
+        },
+        {
+          "name": "DGT"
+        },
+        {
+          "name": "Water Dist. Matina"
+        },
+        {
+          "name": "NCCC Maa"
+        },
+        {
+          "name": "Ateneo Matina"
+        },
+        {
+          "name": "Pichon St. cor. Quirino Ave."
+        },
+        {
+          "name": "Grand Menseng Hotel"
+        },
+        {
+          "name": "CM Recto Ave."
+        },
+        {
+          "name": "Davao Light (C. Bangoy St.)"
+        }
+      ]
+    },
+    {
+      "id": "R503PM",
+      "category": "SOUTH",
+      "shift": "PM",
+      "title": "Bangkal - Roxas",
+      "stops": [
+        {
+          "name": "Davao Light (C. Bangoy St.)"
+        },
+        {
+          "name": "San Pedro St."
+        },
+        {
+          "name": "UM Matina"
+        },
+        {
+          "name": "Alorica Davao"
+        },
+        {
+          "name": "Shrine Hills Matina"
+        },
+        {
+          "name": "Kawayan Drive"
+        },
+        {
+          "name": "Matina Crossing"
+        },
+        {
+          "name": "Tahimik Ave. Matina"
+        },
+        {
+          "name": "SPED Bangkal"
+        },
+        {
+          "name": "Shell Bangkal"
+        },
+        {
+          "name": "Hope Ave. Bangkal"
+        },
+        {
+          "name": "Hope Ave. Bangkal"
+        },
+        {
+          "name": "Ateneo Senior High"
+        },
+        {
+          "name": "SPED Bangkal"
+        },
+        {
+          "name": "Tahimik Ave. Matina"
+        },
+        {
+          "name": "Matina Crossing"
+        },
+        {
+          "name": "Kawayan Drive"
+        },
+        {
+          "name": "DGT"
+        },
+        {
+          "name": "Water Dist. Matina"
+        },
+        {
+          "name": "NCCC Maa"
+        },
+        {
+          "name": "Ateneo Matina"
+        },
+        {
+          "name": "Pichon St. cor. Quirino Ave."
+        },
+        {
+          "name": "Grand Menseng Hotel"
+        },
+        {
+          "name": "CM Recto Ave."
+        },
+        {
+          "name": "Davao Light (C. Bangoy St.)"
+        }
+      ]
+    }
+  ]
+}

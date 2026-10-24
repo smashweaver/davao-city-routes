@@ -1,0 +1,23 @@
+{
+  "report_title": "Davao Sustainable Urban Transport Project: Final Report",
+  "report_date": "2013-12",
+  "section": "Part D: Review of Existing Public Transport (June 2013), Annex A, printed pages 39-42",
+  "data_as_of": "2012-12-31",
+  "checked_on": "2026-10-24",
+  "route_rows": 131,
+  "aircon_subrows": 8,
+  "total_franchises": 6724,
+  "total_units": 7278,
+  "csv_sha256": "e4c55eeff7ff4de51e2e349b1ab2265456efcd7f071318d40aa719f16c476225",
+  "official_report_url": "https://www.adb.org/projects/documents/phi-davao-sustainable-urban-transport-project-final-report-dec-2013-tacr",
+  "official_pdf_url": "https://www.adb.org/sites/default/files/project-document/172847/45296-003-tacr-01.pdf",
+  "transcription_url": "https://www.scribd.com/document/947031506/45296-003-tacr-01",
+  "limitations": [
+    "Official download returned HTTP 403; table transcribed from the public text mirror",
+    "Counts reconcile with printed totals; no PDF visual verification of the table",
+    "Historical authorized franchise inventory; current service is unverified",
+    "Vehicle-mix text preserved without filling missing or dash values",
+    "AIRCON subrows remain attached to preceding route; never counted as extra base routes",
+    "No route geometry, ordered stops, schedules, or current fares in this annex"
+  ]
+}

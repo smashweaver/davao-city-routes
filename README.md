@@ -3,19 +3,27 @@
 An interactive, single-file web app for exploring Davao City PUJ (jeepney) routes,
 planning a commute, and animating a jeepney along the chosen road path.
 
-This repository is an exploratory spike for a planned public app, with
-advertising as the intended monetization model. The product inspiration is a
-Singapore transit app that brings bus and train routes together in one place;
-the Davao spike begins with local jeepney routes. Product direction and
-milestones are recorded in [`ROADMAP.md`](ROADMAP.md#product-direction).
+This repository is an exploratory spike for Davao commute planning. The product
+inspiration is a Singapore transit app that brings bus and train routes together
+in one place; the Davao spike begins with local jeepney routes. A completed,
+validated road and transit-route network could eventually support traffic
+monitoring. That is a longer-term possibility; the current scope and milestones
+are recorded in [`ROADMAP.md`](ROADMAP.md#product-direction).
 Journeys are normalized into one ordered result — origin, tagged waypoints
 (board, alight, transfer), and connected walk/ride legs with full geometry — so
 the map, the instructions, and the animation read the same boundaries. Static
 BOARD and GET OFF markers appear for every jeep ride, and playback follows the
 complete trip: walking, every ride and transfer, then walking to the destination.
 
-The app ships five verified routes, a simple trip planner, and a map with an
-animated jeepney marker.
+The app ships five selected prototype routes, a simple trip planner, and a map
+with an animated jeepney marker.
+
+Route coverage is incomplete. The online-source descriptions and generated
+road geometry still need validation against current services, route directions,
+and boarding restrictions. The [route-data acquisition audit](data/README.md)
+records 52 candidate jeepney geometries, a broader 79-entry directory, and
+official DC Bus AM/PM stop-name lists for nine route codes. These have not been
+imported into the planner; the bus lists still need coordinates and geometry.
 
 **Live demo:** <https://smashweaver.github.io/davao-city-routes/>
 
@@ -118,8 +126,8 @@ Development and verification tooling:
 Browser MCP servers and diagnostic tools are used during development; visitors
 only run the web app. GeoClue was investigated and then removed from the local
 development system. The app requests location through the browser Geolocation API.
-The planned public release and ad-supported revenue model are recorded in
-[`ROADMAP.md`](ROADMAP.md#product-direction).
+The spike's scope and possible longer-term traffic-monitoring direction are
+recorded in [`ROADMAP.md`](ROADMAP.md#product-direction).
 
 ## Getting started
 
@@ -191,6 +199,7 @@ DavaoRoutes/
 ├── run.sh       # threaded local static server (default port 8000)
 ├── README.md
 ├── ROADMAP.md   # product direction, milestones, and investigation findings
+├── data/        # source inventory and route-data acquisition findings (not app data)
 ├── tools/
 │   ├── geolocation/ # native Firefox probes and mocked browser regression checks
 │   └── planner/     # road-path comparison CLI and planner regression checks

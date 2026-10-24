@@ -2,16 +2,16 @@
 
 ## Product direction
 
-This project is an exploratory spike for a Davao commute app. The intention is
-to turn the findings into a maintained app for public use, with advertising as
-the revenue model.
+This project is an exploratory spike for Davao commute planning. Its purpose is
+to test the experience, understand the route-data gaps, and preserve findings
+for later work.
 
 - **Current stage:** validate route exploration, commute planning, automatic
   location, and the experience on desktop and mobile.
-- **Public app:** carry the proven behavior and investigation findings forward
-  into the version people will use publicly.
-- **Monetization:** support the public app through ads. The ad provider,
-  placements, and integration are still to be decided; ads are not implemented.
+- **Immediate scope:** preserve the existing app while collecting route evidence
+  and preparing bus-route integration. Broader app changes are deferred.
+- **Longer-term possibility:** once the road and transit-route network is
+  complete and validated, explore connecting it to traffic monitoring.
 
 ### Product inspiration
 
@@ -21,17 +21,71 @@ around the city into one place. Its name has not yet been recorded.
 Use that experience as a reference for making Davao's transport network easy to
 explore and journeys easy to plan. The current spike starts with local jeepney
 routes; use the Singapore reference to guide the route map, search, and journey
-planning experience as the public app develops.
+planning experience as the spike is evaluated.
 
-### Milestones toward the public app
+### Validation milestones
 
 - [ ] Establish reliable real-device location and decide which browsers to support.
 - [ ] Validate route information and trip results with real commute examples.
 - [ ] Validate the mobile experience for everyday use.
-- [ ] Plan and implement the public release and advertising integration.
+- [ ] Complete and validate the road and transit-route network as a foundation
+      for later work.
+
+### Longer-term traffic monitoring
+
+A completed road and transit-route network could provide a foundation for
+traffic monitoring and eventually help relate observed traffic conditions to
+commute planning. This is a future investigation. Traffic-data sources,
+availability, update frequency, and integration have not been established, and
+implementation is outside the current spike scope.
+
+### Route data completeness
+
+Current scope, confirmed October 24, 2026: preserve the app while collecting
+route evidence. Bus-route integration is the only requested app expansion;
+broader planner changes, walking preferences, and jeepney-data imports are
+deferred. The investigations below do not authorize implementing those changes.
+
+The October 24, 2026 [acquisition audit](data/README.md) found 52 route geometries
+in Commute Davao's public web bundle (33,457 coordinate points) and 79 route
+entries in CommuteTour's directory. The [source inventory](data/route-inventory.csv)
+preserves 131 source entries, including overlap; it is not a distinct-service
+count. Current operations, directions, stops, fares, hours, and reuse terms have
+not been established for the candidate geometry. The app still has five selected
+prototype routes. No complete current verified feed was established by the search.
+
+- [x] Record candidate source inventories and inspect the 52-feature geometry
+      collection without importing it into the planner.
+- [x] Prepare an official-data request draft in the audit and dedicated
+      [jeepney master-list submission steps and letter](data/LTFRB-REQUEST.md);
+      no request sent.
+- [x] Find and transcribe the historical LTFRB-derived jeepney franchise
+      inventory in the ADB December 2013 report: 131 base route entries plus
+      eight AIRCON subrows, data as of December 31, 2012. Historical counts
+      reconcile to 6,724 franchises and 7,278 units. The official PDF returned
+      HTTP 403; transcription uses a public text mirror, with provenance in
+      [`data/jeepney-franchise-inventory-2012.metadata.json`](data/jeepney-franchise-inventory-2012.metadata.json).
+      This is not a current active-service list or a planner import.
+- [ ] Obtain a dated LTFRB Region XI master inventory, including active/inactive
+      status and variants; acquire CTTMO rerouting/boarding restrictions.
+- [ ] Establish reuse terms for candidate geometry and reconcile official,
+      community, and existing app records, preserving unresolved differences.
+- [ ] Acquire and validate separate outbound/return alignments or loop
+      directions, boarding rules, operating hours, and fare references.
+- [ ] Replace the planner's blanket bidirectional assumption before importing
+      services whose directions differ; validate representative real commutes.
+- [ ] Establish a dated coverage denominator and a process for service updates.
 
 ### Bus routes and free-ride services
 
+- [x] Acquire official DC Bus AM/PM stop-name lists: 18 records across nine
+      route codes and 451 stop entries, saved with provenance in
+      [`data/dc-bus-route-stops.json`](data/dc-bus-route-stops.json). Stops are
+      names only; coordinates, geometry, per-stop times, fare rules, and service
+      validity dates are not present in this response. No planner import yet.
+- [x] Record dated Love Bus evidence for UM Matina–Tugbok, Lasang–Sasa via
+      Roxas, and the Toril–Roxas launch reported October 1, 2026; keep these
+      distinct from DC Bus and the planned DPTMP network in the acquisition audit.
 - [ ] Identify and map **Love Bus** and **Davao City Bus / DC Bus (Davao City
       Interim Bus Service)** routes alongside jeepney routes.
 - [ ] Verify each service's boarding and alighting stops, route directions,
@@ -42,6 +96,11 @@ planning experience as the public app develops.
       explanation for the free rides.
 - [ ] Plan how bus and jeepney options, transfers, and service availability will
       appear together in search and trip results.
+- [ ] Obtain official bus stop coordinates, directional geometry, service
+      calendars/time windows, transfer restrictions, and dated fare/free-ride
+      rules. Permit bus boarding only at verified designated stops.
+- [ ] Keep proposed DPTMP routes in planned status until a dated operational
+      confirmation supports including them in journey search.
 
 Research starting points: the [official Davao Bus portal](https://davaobus.davaocity.gov.ph/)
 links to live DC Bus locations and route information. A
