@@ -135,9 +135,10 @@ The goal is to animate the complete journey through walking and jeep-ride
 waypoints. Intersection matching provides the boarding/alighting boundaries;
 static waypoint markers alone do not fulfill this goal.
 
-- [ ] Return one organized journey result containing origin, destination,
+- [x] Return one organized journey result containing origin, destination,
       ordered tagged waypoints, and connecting walk/ride legs with geometry.
-      Use that result for instructions, map display, and animation.
+      `buildJourney()` now normalizes a planned trip into this result, and the
+      map and instructions read it instead of re-deriving the boundaries.
 - [ ] Animate access walking, every jeep ride and transfer, and final walking
       to the destination in sequence, using the geometry of each trip leg.
 - [ ] Change the moving marker between walking and jeep representations at
@@ -148,7 +149,8 @@ static waypoint markers alone do not fulfill this goal.
       scrubbing across mode changes and reaching the destination.
 
 Current trip playback covers only the first jeep ride. Whole-journey playback
-is not implemented yet.
+is not implemented yet. The journey result and its static waypoint markers are
+in place; wiring every leg into the playback controls is the remaining step.
 
 ## Boarding points and route finding
 - [x] Consider nearby points along mapped jeep route lines when choosing the
@@ -160,7 +162,7 @@ is not implemented yet.
 - [ ] Use Turf overlap/intersection operations on existing walking and jeep
       paths to select boarding/alighting boundaries and convert shared walking
       sections into rides. Approved approach; implementation is still pending.
-- [ ] Show static BOARD and GET OFF markers for every ride, including a single
+- [x] Show static BOARD and GET OFF markers for every ride, including a single
       jeep trip; retain dashed walking links and solid ride sections.
 - [ ] Validate the Flores Village / Bangkal boarding location on the ground,
       including entrances, the correct side of the road, and permitted stops.

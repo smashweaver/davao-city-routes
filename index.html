@@ -141,6 +141,12 @@
     .key-line { display: inline-block; width: 17px; border-top: 3px solid #d99922; border-radius: 2px; }
     .key-walk { border-top: 2px dashed #94a3b8; }
     .jeep-icon { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 2px solid white; border-radius: 50%; box-shadow: 0 3px 10px #153b3540; font-size: 14px; }
+    .journey-marker { background: none; border: 0; }
+    .journey-badge { display: inline-flex; align-items: center; transform: translate(-50%, -150%); padding: 2px 7px; border: 1.5px solid #fffdf5; border-radius: 999px; color: #fffdf5; font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; box-shadow: 0 2px 7px #153b3550; }
+    .journey-badge.is-board { background: #1f7a4d; }
+    .journey-badge.is-alight { background: #b4462f; }
+    .journey-badge.is-transfer { background: #c07a12; }
+    .journey-badge.is-waypoint { background: #62705a; }
     .destination-marker { background: none; border: 0; }
     .destination-marker svg { display: block; width: 44px; height: 52px; filter: drop-shadow(0 3px 5px #153b3545); }
     .destination-label.leaflet-tooltip { width: max-content; max-width: 190px; padding: 9px 12px; border: 1px solid #d4dbc7; border-radius: 9px; background: #fffdf5; color: var(--ink); box-shadow: 0 3px 14px #153b3520; white-space: normal; text-align: center; }
@@ -3265,7 +3271,8 @@
     let tripLayer = null;
 
     let activeRoute = null;
-    let currentTrip = null;
+    let currentTrip = null;      // planner-shaped trip (buildTrip output)
+    let currentJourney = null;   // renderer-ready journey result (buildJourney output)
     let tripPlanSequence = 0;
     let walkMode = 'roads'; // 'straight' | 'roads'
     let animProgress = 0; // 0 to 1 within the current animation range
@@ -3462,6 +3469,24 @@
         jeepMarker.setIcon(createJeepIcon(color));
         jeepMarker.setLatLng(coord);
       }
+    }
+
+    const journeyWaypointStyles = {
+      board:    { className: 'is-board',    text: 'Board' },
+      alight:   { className: 'is-alight',   text: 'Get off' },
+      transfer: { className: 'is-transfer', text: 'Transfer' },
+      waypoint: { className: 'is-waypoint', text: 'Stop' }
+    };
+
+    // A labelled pill that floats above a boarding, alighting, or transfer point.
+    function createWaypointIcon(type) {
+      const style = journeyWaypointStyles[type] || journeyWaypointStyles.waypoint;
+      return L.divIcon({
+        className: 'journey-marker',
+        html: `<span class="journey-badge ${style.className}">${style.text}</span>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0]
+      });
     }
 
     function setOriginMarker(point) {
@@ -4253,6 +4278,199 @@
       };
     }
 
+    // --- JOURNEY MODEL ---
+    // The planner (buildTrip) works in graph terms: rides reference stop keys and
+    // route progress, and walks carry their own endpoint records. Rendering and
+    // playback instead need one ordered result that already knows where walking
+    // stops and a jeep ride begins. buildJourney() turns a planned trip into that
+    // result, so the map, the instructions, and the animation never re-derive the
+    // walk/ride boundaries from route geometry themselves.
+    //
+    //   journey = {
+    //     origin, destination, stops, totalWalk, transfers, estimatedWalking,
+    //     waypoints: [{ id, type, lat, lng, label, stopKey, routeIds[], estimated }],
+    //     legs: [{ id, type: 'walk' | 'ride', fromId, toId, path: [[lat, lng], ...],
+    //              distance, estimated, synthetic?,
+    //              // ride legs also keep: route, routeId, routeName, routeColor,
+    //              //   fare, fromStop, toStop, fromProgress, toProgress
+    //              // walk legs also keep: from, to (point records) }]
+    //   }
+    //
+    // waypoint.type is one of: origin | board | alight | transfer | destination.
+    // Coordinates stay in [lat, lng] order, matching route data and Leaflet.
+
+    const WAYPOINT_SNAP_METRES = 1;
+
+    function sameWaypointPoint(a, b) {
+      return haversineDistance([a.lat, a.lng], [b.lat, b.lng]) <= WAYPOINT_SNAP_METRES;
+    }
+
+    // Endpoints of a planner leg as plain points. A ride endpoint is interpolated
+    // on the route line, which is where a passenger actually boards or alights.
+    function journeyLegEndpoints(leg, stops) {
+      if (leg.type === 'walk') {
+        return {
+          start: { lat: leg.from.lat, lng: leg.from.lng, label: leg.from.label },
+          end: { lat: leg.to.lat, lng: leg.to.lng, label: leg.to.label }
+        };
+      }
+      const route = leg.route;
+      const start = interpolatePath(route.coordinates, route.cumulative, leg.fromProgress);
+      const end = interpolatePath(route.coordinates, route.cumulative, leg.toProgress);
+      const fromStop = stops[leg.fromStop];
+      const toStop = stops[leg.toStop];
+      return {
+        start: { lat: start[0], lng: start[1], label: (fromStop && fromStop.name) || leg.fromStop,
+          stopKey: leg.fromStop, estimated: !!(fromStop && fromStop.estimated) },
+        end: { lat: end[0], lng: end[1], label: (toStop && toStop.name) || leg.toStop,
+          stopKey: leg.toStop, estimated: !!(toStop && toStop.estimated) }
+      };
+    }
+
+    // Build one renderer-ready leg between two waypoints. `source` is the planner
+    // leg it came from, or null for a short unplanned connector.
+    function buildJourneyLeg(source, fromWaypoint, toWaypoint) {
+      const from = { lat: fromWaypoint.lat, lng: fromWaypoint.lng, label: fromWaypoint.label };
+      const to = { lat: toWaypoint.lat, lng: toWaypoint.lng, label: toWaypoint.label };
+      const straight = [[from.lat, from.lng], [to.lat, to.lng]];
+
+      if (!source) {
+        // For example the last few metres between the origin and the road access
+        // point. Kept explicit so neighbouring paths never leave an unexplained gap.
+        return {
+          type: 'walk', from, to, fromId: fromWaypoint.id, toId: toWaypoint.id,
+          path: straight, distance: haversineDistance([from.lat, from.lng], [to.lat, to.lng]),
+          estimated: true, synthetic: true
+        };
+      }
+
+      if (source.type === 'walk') {
+        const path = (source.path && source.path.length > 1) ? source.path.slice() : straight.slice();
+        path[0] = [from.lat, from.lng];
+        path[path.length - 1] = [to.lat, to.lng];
+        return { ...source, from, to, fromId: fromWaypoint.id, toId: toWaypoint.id,
+          path, estimated: !source.path };
+      }
+
+      const path = routeSlice(source.route, source.fromProgress, source.toProgress);
+      path[0] = [from.lat, from.lng];
+      path[path.length - 1] = [to.lat, to.lng];
+      return { ...source, fromId: fromWaypoint.id, toId: toWaypoint.id, path,
+        routeId: source.route.id, routeName: source.route.name,
+        routeColor: source.route.color, fare: source.route.fare, estimated: false };
+    }
+
+    function buildJourney(trip) {
+      const stops = trip.stops || landmarks;
+      const origin = { lat: trip.origin.lat, lng: trip.origin.lng, label: trip.origin.label || 'Your location' };
+      const destination = { lat: trip.destination.lat, lng: trip.destination.lng, label: trip.destination.label || 'Destination' };
+      const legs = trip.legs || [];
+
+      // 1. Resolve the shared boundary of each consecutive pair of legs to a
+      //    single point. When a ride touches the boundary its route point wins:
+      //    that is exactly where the passenger boards or alights.
+      const endpoints = legs.map(leg => journeyLegEndpoints(leg, stops));
+      for (let i = 0; i < legs.length - 1; i++) {
+        const boundary = legs[i + 1].type === 'ride'
+          ? { ...endpoints[i + 1].start }
+          : { ...endpoints[i].end };
+        endpoints[i].end = { ...boundary };
+        endpoints[i + 1].start = { ...boundary };
+      }
+
+      // 2. Chain the endpoints into ordered waypoint candidates, merging a shared
+      //    boundary into one waypoint.
+      const chain = [];
+      const addToChain = point => {
+        const last = chain[chain.length - 1];
+        if (last && sameWaypointPoint(last, point)) {
+          if (point.estimated) last.estimated = true;
+          return last;
+        }
+        const entry = { lat: point.lat, lng: point.lng, label: point.label,
+          stopKey: point.stopKey || null, estimated: !!point.estimated,
+          arrives: [], departs: [] };
+        chain.push(entry);
+        return entry;
+      };
+
+      addToChain(origin);
+      endpoints.forEach((endpoint, i) => {
+        addToChain(endpoint.start).departs.push(i);
+        addToChain(endpoint.end).arrives.push(i);
+      });
+      addToChain(destination);
+
+      // The first and last waypoints are always the actual origin and destination.
+      chain[0].label = origin.label;
+      chain[0].estimated = false;
+      const finalEntry = chain[chain.length - 1];
+      finalEntry.label = destination.label;
+      finalEntry.estimated = false;
+      finalEntry.lat = destination.lat;
+      finalEntry.lng = destination.lng;
+
+      // 3. Tag every waypoint from the legs that meet there, and record the route
+      //    identity of boarding and alighting points.
+      const waypoints = chain.map((entry, index) => {
+        const arrives = entry.arrives.map(i => legs[i]);
+        const departs = entry.departs.map(i => legs[i]);
+        const arrivesRide = arrives.some(leg => leg.type === 'ride');
+        const departsRide = departs.some(leg => leg.type === 'ride');
+        let type;
+        if (index === 0) type = 'origin';
+        else if (index === chain.length - 1) type = 'destination';
+        else if (arrivesRide && departsRide) type = 'transfer';
+        else if (departsRide) type = 'board';
+        else if (arrivesRide) type = 'alight';
+        else type = 'waypoint';
+
+        const routeIds = arrives.concat(departs)
+          .filter(leg => leg.type === 'ride')
+          .map(leg => leg.route.id);
+        return {
+          id: `wp-${index}`, type,
+          lat: entry.lat, lng: entry.lng,
+          label: entry.label, stopKey: entry.stopKey,
+          estimated: entry.estimated,
+          routeIds: [...new Set(routeIds)]
+        };
+      });
+
+      // 4. Connect consecutive waypoints into ordered legs, rebuilding the planner
+      //    leg that spans each pair and filling any gap with a short walk.
+      const spanByLeg = {};
+      chain.forEach((entry, index) => {
+        entry.departs.forEach(i => { spanByLeg[i] = spanByLeg[i] || {}; spanByLeg[i].from = index; });
+        entry.arrives.forEach(i => { spanByLeg[i] = spanByLeg[i] || {}; spanByLeg[i].to = index; });
+      });
+      const legForSpan = {};
+      Object.entries(spanByLeg).forEach(([i, span]) => {
+        if (span.from !== undefined && span.to !== undefined && span.from !== span.to) {
+          legForSpan[`${span.from}-${span.to}`] = legs[Number(i)];
+        }
+      });
+
+      const orderedLegs = [];
+      for (let i = 0; i < waypoints.length - 1; i++) {
+        const source = legForSpan[`${i}-${i + 1}`] || null;
+        orderedLegs.push(buildJourneyLeg(source, waypoints[i], waypoints[i + 1]));
+      }
+
+      const walks = orderedLegs.filter(leg => leg.type === 'walk');
+      return {
+        ...trip,
+        origin: trip.origin,
+        destination: trip.destination,
+        stops,
+        waypoints,
+        legs: orderedLegs,
+        totalWalk: trip.totalWalk,
+        totalRide: orderedLegs.filter(leg => leg.type === 'ride').reduce((sum, leg) => sum + leg.distance, 0),
+        estimatedWalking: walks.some(leg => !leg.synthetic && leg.estimated)
+      };
+    }
+
     // --- UI RENDER ---
     function chatBox(html) {
       const box = document.createElement('div');
@@ -4300,32 +4518,38 @@
       routes.forEach(route => container.appendChild(createRouteCard(route)));
     }
 
-    function renderTripSummary(trip) {
+    function renderTripSummary(journey) {
       const container = document.getElementById('route-list');
       container.innerHTML = '';
 
-      const legsHtml = trip.legs.map(leg => {
+      const waypointById = {};
+      journey.waypoints.forEach(waypoint => { waypointById[waypoint.id] = waypoint; });
+
+      const legsHtml = journey.legs.map(leg => {
         if (leg.type === 'walk') {
-          return `<li class="trip-leg"><span>🚶</span><div>Walk <b>${formatDistance(leg.distance)}</b> to <b>${escapeHtml(leg.to.label)}</b></div></li>`;
+          const to = waypointById[leg.toId];
+          return `<li class="trip-leg"><span>🚶</span><div>Walk <b>${formatDistance(leg.distance)}</b> to <b>${escapeHtml(to ? to.label : leg.to.label)}</b></div></li>`;
         }
-        const stops = trip.stops || landmarks;
-        const fromName = stops[leg.fromStop].name;
-        const toName = stops[leg.toStop].name;
-        return `<li class="trip-leg"><span>🚌</span><div><b class="trip-route-name" style="--route-color:${leg.route.color}">${escapeHtml(leg.route.name)}</b><br><span class="trip-stops">${escapeHtml(fromName)} → ${escapeHtml(toName)}</span> <span class="fare-badge">${leg.route.fare}</span></div></li>`;
+        const from = waypointById[leg.fromId];
+        const to = waypointById[leg.toId];
+        const fromName = (from && from.label) || leg.route.name;
+        const toName = (to && to.label) || leg.route.name;
+        return `<li class="trip-leg"><span>🚌</span><div><b class="trip-route-name" style="--route-color:${leg.route.color}">${escapeHtml(leg.route.name)}</b><br><span class="trip-stops">Board at ${escapeHtml(fromName)} → get off at ${escapeHtml(toName)}</span> <span class="fare-badge">${leg.route.fare}</span></div></li>`;
       }).join('');
 
-      const rides = trip.legs.filter(leg => leg.type === 'ride');
-      const estimatedAccess = rides.some(leg => trip.stops?.[leg.fromStop]?.estimated || trip.stops?.[leg.toStop]?.estimated);
+      const rides = journey.legs.filter(leg => leg.type === 'ride');
+      const estimatedAccess = rides.some(leg => journey.stops?.[leg.fromStop]?.estimated || journey.stops?.[leg.toStop]?.estimated);
+      const transfers = journey.transfers || 0;
       const summary = rides.length === 0
         ? 'Walk directly to your destination.'
-        : `${rides.length === 1 ? 'Direct jeepney ride' : `${trip.transfers} transfer${trip.transfers > 1 ? 's' : ''}`} · ${formatDistance(trip.totalWalk)} walking`;
+        : `${rides.length === 1 ? 'Direct jeepney ride' : `${transfers} transfer${transfers > 1 ? 's' : ''}`} · ${formatDistance(journey.totalWalk)} walking`;
 
-      const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${trip.origin.lat},${trip.origin.lng}&destination=${trip.destination.lat},${trip.destination.lng}&travelmode=walking`;
+      const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${journey.origin.lat},${journey.origin.lng}&destination=${journey.destination.lat},${journey.destination.lng}&travelmode=walking`;
       const box = chatBox(`
-        <div class="trip-title">Trip to ${escapeHtml(trip.destination.label)}</div>
+        <div class="trip-title">Trip to ${escapeHtml(journey.destination.label)}</div>
         <ol class="trip-legs">${legsHtml}</ol>
         <div class="trip-summary">${summary} · dashed walks follow roads (OSRM) when available</div>
-        ${trip.estimatedWalking ? '<div class="trip-summary">Road routing was unavailable for some walks; those distances are straight-line estimates.</div>' : ''}
+        ${journey.estimatedWalking ? '<div class="trip-summary">Road routing was unavailable for some walks; those distances are straight-line estimates.</div>' : ''}
         ${estimatedAccess ? '<div class="trip-summary">Nearby road access is estimated from the jeep route. Check the actual boarding spot and road crossing before travelling.</div>' : ''}
         <div><a class="trip-link" href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Walking directions on Google Maps ↗</a></div>
         <div class="walk-mode-row">
@@ -4339,7 +4563,7 @@
       const walkBtn = document.getElementById('walk-mode-btn');
       if (walkBtn) walkBtn.onclick = () => {
         walkMode = (walkMode === 'roads') ? 'straight' : 'roads';
-        if (currentTrip) { showTrip(currentTrip); renderTripSummary(currentTrip); }
+        if (currentTrip) showTrip(currentTrip);
       };
 
       const heading = document.createElement('div');
@@ -4347,7 +4571,7 @@
       heading.textContent = 'All routes';
       container.appendChild(heading);
 
-      const tripRouteIds = [...new Set(trip.legs.filter(leg => leg.type === 'ride').map(leg => leg.route.id))];
+      const tripRouteIds = [...new Set(journey.legs.filter(leg => leg.type === 'ride').map(leg => leg.route.id))];
       davaoRoutes.forEach(route => container.appendChild(createRouteCard(route, tripRouteIds)));
     }
 
@@ -4392,6 +4616,7 @@
 
     function clearTripDisplay() {
       tripPlanSequence++;
+      currentJourney = null;
       if (tripLayer) tripLayer.clearLayers();
       clearDestinationMarker();
       animationRange = { start: 0, end: 1 };
@@ -4448,24 +4673,30 @@
         isPlaying = false;
         cancelAnimationFrame(animFrameId);
         const btn = document.getElementById('play-btn');
-        btn.innerText = '▶ Play';
+        btn.innerText = '\u25b6 Play';
         btn.className = 'play-button';
       }
+
+      // One canonical result feeds the lines, the markers, and the instructions.
+      const journey = buildJourney(trip);
+      currentJourney = journey;
 
       if (tripLayer) tripLayer.clearLayers();
       Object.values(polylineLayers).forEach(layer => layer.setStyle({ opacity: 0.15, weight: 4 }));
 
       const boundsPoints = [];
 
-      trip.legs.forEach(leg => {
+      journey.legs.forEach(leg => {
         let coords;
         if (leg.type === 'ride') {
-          coords = routeSlice(leg.route, leg.fromProgress, leg.toProgress);
+          coords = leg.path;
           L.polyline(coords, {
-            color: leg.route.color, weight: 8, opacity: 1, lineJoin: 'round'
+            color: leg.routeColor || leg.route.color, weight: 8, opacity: 1, lineJoin: 'round'
           }).addTo(tripLayer);
         } else {
-          coords = (walkMode === 'roads' && leg.path && leg.path.length > 1) ? leg.path : [[leg.from.lat, leg.from.lng], [leg.to.lat, leg.to.lng]];
+          coords = (walkMode === 'roads' && !leg.synthetic && leg.path && leg.path.length > 1)
+            ? leg.path
+            : [[leg.from.lat, leg.from.lng], [leg.to.lat, leg.to.lng]];
           L.polyline(coords, {
             color: '#94a3b8', weight: 4, opacity: 0.9, dashArray: '6 8'
           }).addTo(tripLayer);
@@ -4473,20 +4704,32 @@
         boundsPoints.push(...coords);
       });
 
-      setDestinationMarker(trip.destination);
+      setDestinationMarker(journey.destination);
 
-      const rides = trip.legs.filter(leg => leg.type === 'ride');
-      rides.slice(0, -1).forEach(leg => {
-        const stop = (trip.stops || landmarks)[leg.toStop];
-        L.circleMarker(stop.coords, {
-          radius: 7, color: '#f59e0b', weight: 3, fillColor: '#0f172a', fillOpacity: 1
-        }).addTo(tripLayer).bindTooltip(`Transfer at ${stop.name}`);
+      // Static boarding, alighting, and transfer markers for every ride, including
+      // a single-ride trip. A shared transfer point shows one transfer badge.
+      const waypointById = {};
+      journey.waypoints.forEach(waypoint => { waypointById[waypoint.id] = waypoint; });
+      const addWaypointMarker = (waypoint, type) => {
+        L.marker([waypoint.lat, waypoint.lng], {
+          icon: createWaypointIcon(type), interactive: false
+        }).addTo(tripLayer);
+      };
+      journey.waypoints.forEach(waypoint => {
+        if (waypoint.type === 'transfer') addWaypointMarker(waypoint, 'transfer');
+      });
+      journey.legs.forEach(leg => {
+        if (leg.type !== 'ride') return;
+        const from = waypointById[leg.fromId];
+        const to = waypointById[leg.toId];
+        if (from && from.type !== 'transfer') addWaypointMarker(from, 'board');
+        if (to && to.type !== 'transfer') addWaypointMarker(to, 'alight');
       });
 
-      setOriginMarker(trip.origin);
+      setOriginMarker(journey.origin);
 
       const bounds = L.latLngBounds(
-        boundsPoints.concat([[trip.origin.lat, trip.origin.lng], [trip.destination.lat, trip.destination.lng]])
+        boundsPoints.concat([[journey.origin.lat, journey.origin.lng], [journey.destination.lat, journey.destination.lng]])
       );
       const labelSize = destinationMarker.getTooltip().getElement().getBoundingClientRect();
       const compact = map.getSize().y < 240;
@@ -4495,6 +4738,8 @@
         paddingBottomRight: [compact ? labelSize.width + 45 : 100, 35]
       });
 
+      // Full multi-leg playback is still pending: this plays the first ride only.
+      const rides = journey.legs.filter(leg => leg.type === 'ride');
       if (rides.length > 0) {
         const first = rides[0];
         activeRoute = first.route;
@@ -4508,8 +4753,8 @@
         animationRange = { start: 0, end: 0 };
       }
 
-      document.getElementById('active-route-name').innerText = `Trip to ${trip.destination.label}`;
-      renderTripSummary(trip);
+      document.getElementById('active-route-name').innerText = `Trip to ${journey.destination.label}`;
+      renderTripSummary(journey);
     }
 
     // --- ANIMATION ---

@@ -8,9 +8,11 @@ advertising as the intended monetization model. The product inspiration is a
 Singapore transit app that brings bus and train routes together in one place;
 the Davao spike begins with local jeepney routes. Product direction and
 milestones are recorded in [`ROADMAP.md`](ROADMAP.md#product-direction).
-The next goal is to animate the complete journey: walking to board, all jeep
-rides and transfers, and walking to the destination. Current trip playback
-covers only the first jeep ride; full-journey animation is still planned.
+Journeys are normalized into one ordered result — origin, tagged waypoints
+(board, alight, transfer), and connected walk/ride legs with full geometry — so
+the map, the instructions, and the animation read the same boundaries. Static
+BOARD and GET OFF markers appear for every jeep ride. Playback still animates
+only the first jeep ride; full-journey animation remains planned.
 
 The app ships five verified routes, a simple trip planner, and a map with an
 animated jeepney marker.
@@ -35,6 +37,14 @@ animated jeepney marker.
   considers nearby access points along mapped jeep route lines, so a boarding
   walk need not end at a named landmark. It compares road-routing distances for
   shortlisted trips before choosing; short direct walks remain preferred.
+- **Journey result** — every planned trip is normalized into one ordered result:
+  origin, destination, tagged waypoints (`origin`, `board`, `alight`, `transfer`,
+  `destination`), and connected walk/ride legs with complete `[lat, lng]` geometry.
+  The map, instructions, and playback read this result instead of re-deriving
+  where walking ends and a jeep ride begins.
+- **Boarding markers** — a labelled BOARD and GET OFF badge on the map for every
+  jeep ride, including a single-ride trip, plus one TRANSFER badge at a shared
+  transfer point. Walking stays dashed; rides stay solid.
 - **Route animation** — play/pause, scrub, speed control (1x/2x/5x), and a
   follow-camera option that animates a jeepney marker along the route.
 - **Geolocation** — "My Location" watches for a fix with reported accuracy of
@@ -273,6 +283,10 @@ temporary and removed after the route data was written into `index.html`.
 - Road-detour checks confirm that a long routed walk can change the winner to
   walk–jeep–walk, shared requests are deduplicated, transfer penalties exclude
   the first ride, failures are labeled, and older results cannot replace newer input.
+- A journey-model check confirms each planned trip exposes ordered, tagged
+  waypoints and connected walk/ride legs (`origin → walk → board → ride →
+  alight → destination`) whose paths start and end at the referenced waypoints,
+  and that the BOARD and GET OFF map markers render.
 - An approved live check with the reported Bangkal trip reproduced a roughly
   1.5 km beeline versus a 3.6 km road path. The revised app chose roughly 790 m
   of access walking, a Toril ride, and a remaining walk of about 1.7 km. The
@@ -313,6 +327,9 @@ route checks on October 23).
   times. A verified pedestrian-routing provider is still needed.
 - Routes are modeled as bidirectional lines even where the real service is a
   one-way loop (notably Route 10 southbound).
+- Trip playback still animates only the first jeep ride. The ordered journey
+  result is ready for full multi-leg playback, but the controls are not yet
+  wired across walking and transfer legs.
 - Fares are indicative, not an LTFRB fare matrix.
 - The cost model may prefer a short walk plus a shorter route over a very long
   direct loop (for example `Claveria → SPMC` via Route 10 vs walk + Buhangin).

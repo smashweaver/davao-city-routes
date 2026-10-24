@@ -90,6 +90,44 @@ async def check(browser_type, url):
         assert not errors, errors
         print('PASS: jeepney journeys retain their ride and access/egress walking legs', flush=True)
 
+        # The journey result is the single source for lines, markers, and steps:
+        # ordered waypoints, connected legs, and a board/get-off marker per ride.
+        result = await page.evaluate('''() => {
+          const journey = currentJourney;
+          const ids = new Set(journey.waypoints.map(w => w.id));
+          const connected = journey.legs.every(leg => ids.has(leg.fromId) && ids.has(leg.toId));
+          const endpoints = journey.legs.every(leg => {
+            const get = id => journey.waypoints.find(w => w.id === id);
+            const from = get(leg.fromId), to = get(leg.toId);
+            const start = leg.path[0], end = leg.path[leg.path.length - 1];
+            return from.lat === start[0] && from.lng === start[1] && to.lat === end[0] && to.lng === end[1];
+          });
+          const tagged = journey.waypoints.filter(w => w.type === 'board' || w.type === 'alight').length;
+          return {first: journey.waypoints[0].type, last: journey.waypoints.at(-1).type,
+            rides: journey.legs.filter(l => l.type === 'ride').length, connected, endpoints, tagged};
+        }''')
+        assert result['first'] == 'origin' and result['last'] == 'destination', result
+        assert result['rides'] >= 1 and result['connected'] and result['endpoints'], result
+        assert await page.locator('.journey-badge.is-board').count() >= 1
+        assert await page.locator('.journey-badge.is-alight').count() >= 1
+        print('PASS: journey result exposes ordered waypoints, connected walk/ride legs, and board/get-off markers', flush=True)
+
+        # A shared transfer point is marked once and names both services.
+        await page.locator('#chat-input').fill('from Calinan to SM Lanang')
+        await page.locator('#search-btn').click()
+        await page.wait_for_function("currentJourney && currentJourney.destination.key === 'sm-lanang'")
+        result = await page.evaluate('''() => {
+          const journey = currentJourney;
+          const transfers = journey.waypoints.filter(w => w.type === 'transfer');
+          return {transfers: transfers.length, rides: journey.legs.filter(l => l.type === 'ride').length,
+            transferRoutes: transfers.map(w => w.routeIds.length)};
+        }''')
+        assert result['rides'] == 2 and result['transfers'] == 1, result
+        assert result['transferRoutes'] == [2], result
+        assert await page.locator('.journey-badge.is-transfer').count() == 1
+        assert await page.locator('.journey-badge.is-alight').count() == 1
+        print('PASS: a shared transfer is marked once and names both services', flush=True)
+
         # Approximate Flores Village area, not the user's stored location or a
         # claim about a designated stop. The nearby road is on Toril/Mintal lines.
         result = await page.evaluate('''async () => {
